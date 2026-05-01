@@ -1,0 +1,484 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  FACULTY
+}
+
+enum SystemRole {
+  SUPER_ADMIN       // Full system access
+  ADMIN             // School operations
+  HOD               // Department Head / Head of Department
+  FACULTY           // Faculty / Teacher (department-scoped)
+}
+
+enum PermissionScope {
+  GLOBAL
+  SCHOOL
+  BRANCH
+  DEPARTMENT
+}
+
+enum CustomFeatureType {
+  MENU_PAGE
+  BUTTON_ACTION
+  REPORT
+  API_ACCESS
+  HIDDEN_TOOL
+}
+
+enum AccessScope {
+  GLOBAL
+  DEPARTMENT
+  USER_SPECIFIC
+}
+
+enum FeatureStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum MarksStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  LOCKED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  EDIT_MARKS
+  ACCESS_REQUEST
+  CORRECTION_REQUEST
+}
+
+enum FileAssetStatus {
+  UPLOADING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // bcrypt hash - NEVER store plaintext
+  name      String
+  role      UserRole
+  schoolId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  faculty    Faculty?
+  auditLogs  AuditLog[]
+  requests   Request[]
+  fileAssets FileAsset[]
+  roles      RoleAssignment[]
+  customFeatures CustomFeatureAssignment[]
+  createdRoles Role[]
+  createdCustomFeatures CustomFeature[]
+  rbacLogs   RBACLog[]
+  assignedRoles RoleAssignment[] @relation("AssignedByUser")
+  assignedFeatures CustomFeatureAssignment[] @relation("AssignedByFeature")
+  acceptedFeatures CustomFeatureAssignment[] @relation("AcceptedFeatures")
+  departmentsHead    Department[]  // Departments where this user is HOD
+  marksApproved      Marks[]       // Marks approved by this user
+
+  @@index([email])
+  @@index([schoolId, role])
+}
+
+model Role {
+  id          String            @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  systemRole  SystemRole?       // NULL for custom roles
+  scope       PermissionScope   @default(SCHOOL)
+  status      Boolean           @default(true)
+  createdBy   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  creator            User              @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  permissions        RolePermission[]
+  userAssignments    RoleAssignment[]
+  customFeatureAssignments CustomFeatureAssignment[] @relation("RoleCustomFeatures")
+
+  @@unique([schoolId, name])
+  @@index([schoolId, systemRole])
+  @@index([schoolId, status])
+}
+
+model Permission {
+  id      String   @id @default(cuid())
+  key     String   @unique // e.g., "users.view", "exams.publish"
+  module  String   // e.g., "users", "exams", "reports"
+  action  String   // e.g., "view", "create", "edit", "delete", "approve", "export"
+  description String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  roles RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model RoleAssignment {
+  id           String   @id @default(cuid())
+  userId       String
+  roleId       String
+  schoolId     String
+  departmentId String?  // NULL = global role; specific = department-scoped
+  assignedBy   String
+  assignedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  department        Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedByUser    User        @relation("AssignedByUser", fields: [assignedBy], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId, schoolId, departmentId])
+  @@index([userId, schoolId, departmentId])
+  @@index([roleId, schoolId, departmentId])
+  @@index([departmentId])
+}
+
+model CustomFeature {
+  id          String            @id @default(cuid())
+  schoolId    String
+  name        String
+  key         String            // e.g., "attendance.correction", "inventory.lab"
+  module      String
+  description String?
+  type        CustomFeatureType @default(HIDDEN_TOOL)
+  scope       AccessScope       @default(GLOBAL)
+  status      FeatureStatus     @default(ACTIVE)
+  createdBy   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  creator     User                       @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  assignments CustomFeatureAssignment[]
+
+  @@unique([schoolId, key])
+  @@index([schoolId, status])
+  @@index([module])
+}
+
+model CustomFeatureAssignment {
+  id               String    @id @default(cuid())
+  schoolId         String
+  featureId        String
+  roleId           String?   // NULL if assigned to specific user
+  userId           String?   // NULL if assigned to role
+  departmentId     String?   // Optional department scope
+  startDate        DateTime  @default(now())
+  expiryDate       DateTime?
+  requiresAcceptance Boolean  @default(false)
+  acceptedAt       DateTime?
+  acceptedBy       String?
+  declinedAt       DateTime?
+  declinedBy       String?
+  declineReason    String?
+  assignedBy       String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  feature        CustomFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  role           Role?         @relation("RoleCustomFeatures", fields: [roleId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser User          @relation("AssignedByFeature", fields: [assignedBy], references: [id], onDelete: Restrict)
+  acceptedByUser User?         @relation("AcceptedFeatures", fields: [acceptedBy], references: [id], onDelete: SetNull)
+
+  @@unique([featureId, roleId, userId, schoolId])
+  @@index([schoolId, featureId])
+  @@index([userId, schoolId])
+  @@index([roleId, schoolId])
+  @@index([expiryDate])
+}
+
+model RBACLog {
+  id          String   @id @default(cuid())
+  schoolId    String
+  actorId     String
+  action      String   // "ROLE_CREATED", "PERMISSION_ASSIGNED", "CUSTOM_FEATURE_GRANTED", etc
+  targetType  String   // "role", "permission", "custom_feature", "user_role", "assignment"
+  targetId    String
+  metadata    Json?    // Additional context: { before: {...}, after: {...}, reason: "..." }
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, action, createdAt])
+  @@index([schoolId, targetType, targetId])
+  @@index([actorId])
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // e.g., "Mathematics", "Physics", "English"
+  code      String?  // e.g., "MATH", "PHY", "ENG"
+  headId    String?  // HOD / Department Head
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  head             User?                @relation(fields: [headId], references: [id], onDelete: SetNull)
+  faculty          FacultyDepartment[]
+  classes          Class[]
+  exams            Exam[]
+  roleAssignments  RoleAssignment[]
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@index([headId])
+}
+
+model Faculty {
+  id       String @id @default(cuid())
+  userId   String @unique
+  schoolId String
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  departments FacultyDepartment[]   // Faculty can belong to multiple departments
+  classes     Class[]               // Classes assigned to faculty
+
+  @@index([schoolId])
+}
+
+model FacultyDepartment {
+  id         String   @id @default(cuid())
+  facultyId  String
+  departmentId String
+  primary    Boolean  @default(false)  // Primary department for this faculty
+  createdAt  DateTime @default(now())
+
+  // Relations
+  faculty    Faculty   @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, departmentId])
+  @@index([departmentId])
+}
+
+model Class {
+  id           String   @id @default(cuid())
+  schoolId     String
+  departmentId String   // Department-scoped
+  name         String
+  grade        Int
+  section      String
+  subject      String
+  facultyId    String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  department Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  faculty    Faculty       @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  students   ClassStudent[]
+  marks      Marks[]
+  exams      Exam[]
+
+  @@unique([schoolId, departmentId, grade, section, subject])
+  @@index([schoolId, departmentId])
+  @@index([schoolId, grade, section])
+  @@index([departmentId, facultyId])
+}
+
+model Student {
+  id       String @id @default(cuid())
+  schoolId String
+  email    String
+  name     String
+  rollNo   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  classes ClassStudent[]
+  marks   Marks[]
+
+  @@unique([schoolId, email])
+  @@index([schoolId])
+  @@index([schoolId, name])
+}
+
+model ClassStudent {
+  id        String   @id @default(cuid())
+  classId   String
+  studentId String
+  enrolledAt DateTime @default(now())
+
+  // Relations
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+model Exam {
+  id           String   @id @default(cuid())
+  schoolId     String
+  departmentId String   // Department-scoped (NOT school-wide)
+  classId      String?  // NULL = department-wide; specific = class-specific
+  name         String
+  maxMarks     Int
+  startDate    DateTime
+  endDate      DateTime?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  class      Class?     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  marks      Marks[]
+
+  @@unique([schoolId, departmentId, name, startDate])
+  @@index([schoolId, departmentId])
+  @@index([departmentId, classId])
+  @@index([schoolId, startDate])
+}
+
+model Marks {
+  id          String      @id @default(cuid())
+  schoolId    String
+  examId      String
+  classId     String
+  studentId   String
+  value       String      // "75" | "AB" | "NA"
+  status      MarksStatus @default(DRAFT)
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  lockedAt    DateTime?
+  approvedBy  String?     // User ID of approver
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  exam       Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class      Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  approver   User?        @relation(fields: [approvedBy], references: [id], onDelete: SetNull)
+  history    MarksHistory[]
+  
+  @@unique([examId, studentId])
+  @@index([schoolId, examId, classId, status])
+  @@index([classId, examId, status])
+  @@index([approvedBy])
+}
+
+model MarksHistory {
+  id        String   @id @default(cuid())
+  marksId   String
+  value     String   // Previous value
+  status    MarksStatus
+  changedBy String   // User ID
+  reason    String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  marks Marks @relation(fields: [marksId], references: [id], onDelete: Restrict)
+
+  @@index([marksId, createdAt])
+}
+
+model Request {
+  id          String        @id @default(cuid())
+  schoolId    String
+  userId      String
+  type        RequestType
+  status      RequestStatus @default(PENDING)
+  marksId     String?       // For edit requests
+  reason      String
+  response    String?       // Admin's response
+  respondedBy String?       // Admin user ID
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  schoolId  String
+  userId    String
+  action    String   // "MARKS_SUBMITTED", "REQUEST_APPROVED", etc
+  entity    String   // "marks", "request", "student", etc
+  entityId  String
+  changes   Json?    // { before: {...}, after: {...} }
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, action, entityId, createdAt])
+  @@index([schoolId, createdAt])
+}
+
+model FileAsset {
+  id          String         @id @default(cuid())
+  schoolId    String
+  ownerId     String
+  bucket      String
+  storageKey  String
+  storagePath String?
+  fileName    String
+  fileType    String
+  sizeBytes   Int
+  status      FileAssetStatus @default(UPLOADING)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@unique([bucket, storageKey])
+  @@index([schoolId, ownerId, createdAt])
+  @@index([schoolId, status, createdAt])
+  @@index([bucket, storageKey])
+}

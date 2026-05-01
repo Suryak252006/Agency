@@ -1,0 +1,189 @@
+/**
+ * Seed script for RBAC system
+ * Creates system roles and permissions
+ *
+ * Usage: pnpm exec ts-node prisma/seed-rbac.ts
+ */
+
+import { PrismaClient } from '@prisma/client';
+import { SYSTEM_ROLES, PERMISSIONS, ROLE_PERMISSION_MAP } from '../src/lib/rbac/constants';
+
+const prisma = new PrismaClient();
+
+async function seedRBAC() {
+  console.log('🔐 Starting RBAC seed...\n');
+
+  try {
+    // Get the first school (or use a default one)
+    let school = await prisma.school.findFirst();
+    
+    if (!school) {
+      console.log('⚠️  No school found. Creating default school...');
+      school = await prisma.school.create({
+        data: {
+          name: 'Default School',
+          address: 'School Address',
+          phone: '000-000-0000',
+        },
+      });
+    }
+
+    const schoolId = school.id;
+    console.log(`✅ Using school: ${school.name} (${schoolId})\n`);
+
+    // Create permissions
+    console.log('📝 Creating permissions...');
+    const permissions: Record<string, string> = {};
+
+    for (const perm of PERMISSIONS) {
+      const existingPerm = await prisma.permission.findFirst({
+        where: {
+          key: perm,
+          schoolId,
+        },
+      });
+
+      if (existingPerm) {
+        permissions[perm] = existingPerm.id;
+        console.log(`  ✓ Permission already exists: ${perm}`);
+      } else {
+        const created = await prisma.permission.create({
+          data: {
+            key: perm,
+            name: formatPermissionName(perm),
+            description: `Permission to ${perm.split('.')[1]}`,
+            module: perm.split('.')[0],
+            action: perm.split('.')[1],
+            schoolId,
+          },
+        });
+        permissions[perm] = created.id;
+        console.log(`  ✓ Created: ${perm}`);
+      }
+    }
+
+    console.log(`\n✅ Total permissions: ${Object.keys(permissions).length}\n`);
+
+    // Create system roles
+    console.log('👥 Creating system roles...');
+    const roles: Record<string, string> = {};
+
+    for (const [roleName, roleData] of Object.entries(SYSTEM_ROLES)) {
+      const existingRole = await prisma.role.findFirst({
+        where: {
+          schoolId,
+          systemRole: roleData.systemRole,
+        },
+      });
+
+      let roleId: string;
+
+      if (existingRole) {
+        roleId = existingRole.id;
+        console.log(`  ✓ Role already exists: ${roleData.name}`);
+      } else {
+        const created = await prisma.role.create({
+          data: {
+            name: roleData.name,
+            description: roleData.description,
+            scope: 'GLOBAL',
+            systemRole: roleData.systemRole,
+            isActive: true,
+            schoolId,
+          },
+        });
+        roleId = created.id;
+        console.log(`  ✓ Created: ${roleData.name}`);
+      }
+
+      roles[roleName] = roleId;
+
+      // Get permissions for this role
+      const rolePerms = ROLE_PERMISSION_MAP[roleName] || [];
+
+      // Create RolePermission entries
+      for (const permKey of rolePerms) {
+        const permId = permissions[permKey];
+
+        if (!permId) {
+          console.warn(`  ⚠️  Permission not found: ${permKey}`);
+          continue;
+        }
+
+        const existingRolePerms = await prisma.rolePermission.findFirst({
+          where: {
+            roleId,
+            permissionId: permId,
+          },
+        });
+
+        if (!existingRolePerms) {
+          await prisma.rolePermission.create({
+            data: {
+              roleId,
+              permissionId: permId,
+            },
+          });
+        }
+      }
+
+      console.log(`  ✓ Assigned ${rolePerms.length} permissions to ${roleData.name}`);
+    }
+
+    console.log(`\n✅ Total system roles: ${Object.keys(roles).length}\n`);
+
+    // Verify seed data
+    console.log('📊 Verifying RBAC data:');
+    const totalPermissions = await prisma.permission.count({
+      where: { schoolId },
+    });
+    const totalRoles = await prisma.role.count({
+      where: { schoolId },
+    });
+    const totalRolePermissions = await prisma.rolePermission.count({
+      where: {
+        role: { schoolId },
+      },
+    });
+
+    console.log(`  ✓ Total permissions: ${totalPermissions}`);
+    console.log(`  ✓ Total roles: ${totalRoles}`);
+    console.log(`  ✓ Total role-permission mappings: ${totalRolePermissions}`);
+
+    console.log('\n🎉 RBAC seed completed successfully!\n');
+
+    // Show summary
+    console.log('System Roles Created:');
+    for (const [name, roleId] of Object.entries(roles)) {
+      const roleData = SYSTEM_ROLES[name as keyof typeof SYSTEM_ROLES];
+      console.log(`  - ${roleData.name} (${roleData.scope})`);
+    }
+
+    console.log('\nNext steps:');
+    console.log('  1. Assign roles to users via RoleAssignment model');
+    console.log('  2. Create custom roles as needed');
+    console.log('  3. Assign custom features to users');
+    console.log('\nFor API docs, see: RBAC_IMPLEMENTATION_ROADMAP.md');
+  } catch (error) {
+    console.error('❌ Error seeding RBAC:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Format permission name from key
+ * @example
+ * formatPermissionName('users.delete') => 'Delete Users'
+ */
+function formatPermissionName(key: string): string {
+  const [module, action] = key.split('.');
+  return `${capitalize(action)} ${capitalize(module)}`;
+}
+
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+seedRBAC();
