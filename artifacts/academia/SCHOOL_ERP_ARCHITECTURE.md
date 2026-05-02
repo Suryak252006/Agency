@@ -1,7 +1,4 @@
-# School ERP SaaS — Full Product & Technical Architecture
-
-> **Context:** This document is grounded in the existing codebase (Next.js 15, Prisma, PostgreSQL,
-> cookie-based HMAC auth, `schoolId`-scoped multi-tenancy). Every recommendation builds on or extends
+`-scoped multi-tenancy). Every recommendation builds on or extends
 > what already exists. Nothing here starts from scratch.
 >
 > **Audience:** Founding engineering team, product owner, future contractors.
