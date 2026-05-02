@@ -90,15 +90,15 @@ export default function AssignFeatureModal({
       // Fetch roles
       const rolesRes = await fetch('/api/rbac/roles?pageSize=100');
       if (rolesRes.ok) {
-        const data = await rolesRes.json();
-        setRoles(data.items);
+        const json = await rolesRes.json();
+        setRoles(json.data?.items ?? []);
       }
 
       // Fetch users
       const usersRes = await fetch('/api/users?pageSize=100');
       if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(data.items);
+        const json = await usersRes.json();
+        setUsers(json.data?.items ?? []);
       }
     } catch {
       toast.error('Failed to load data');

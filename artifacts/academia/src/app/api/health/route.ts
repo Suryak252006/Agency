@@ -1,41 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { apiSuccess, generateRequestId } from '@/lib/server/api';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
-  const requestId = generateRequestId();
+export async function GET() {
   const startTime = Date.now();
 
   try {
-    // Ping database
     await db.$queryRaw`SELECT 1`;
-    const dbLatency = Date.now() - startTime;
+    const dbLatencyMs = Date.now() - startTime;
 
     return NextResponse.json(
-      apiSuccess({
-        status: 'healthy',
-        environment: process.env.NODE_ENV || 'development',
-        timestamp: new Date().toISOString(),
-        database: {
-          connected: true,
-          latencyMs: dbLatency,
-        },
-      }, requestId),
+      { status: 'healthy', dbLatencyMs },
       { status: 200 }
     );
   } catch (error) {
+    // Log server-side only — never expose DB error details to callers
+    console.error('[health] database ping failed:', error instanceof Error ? error.message : error);
+
     return NextResponse.json(
-      apiSuccess({
-        status: 'unhealthy',
-        environment: process.env.NODE_ENV || 'development',
-        timestamp: new Date().toISOString(),
-        database: {
-          connected: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      }, requestId),
+      { status: 'unhealthy' },
       { status: 503 }
     );
   }

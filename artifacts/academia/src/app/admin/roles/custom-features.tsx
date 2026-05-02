@@ -69,9 +69,9 @@ export default function CustomFeaturesPage() {
           const params = new URLSearchParams({ page: page.toString(), pageSize: '10', search });
           const res = await fetch(`/api/rbac/custom-features?${params}`);
           if (!res.ok) throw new Error('Failed to fetch features');
-          const data = await res.json();
-          setFeatures(data.items);
-          setTotalPages(data.totalPages);
+          const json = await res.json();
+          setFeatures(json.data?.items ?? []);
+          setTotalPages(json.data?.totalPages ?? 1);
         } catch {
           toast.error('Failed to fetch features');
         } finally {
@@ -91,8 +91,8 @@ export default function CustomFeaturesPage() {
           setLoading(true);
           const res = await fetch('/api/rbac/custom-features/assignments');
           if (!res.ok) throw new Error('Failed to fetch assignments');
-          const data = await res.json();
-          setAssignments(data);
+          const json = await res.json();
+          setAssignments(json.data ?? json);
         } catch {
           toast.error('Failed to fetch assignments');
         } finally {
@@ -154,8 +154,8 @@ export default function CustomFeaturesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Custom Features</h1>
-          <p className="text-gray-600">Create and manage custom feature access for users and roles</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Custom Features</h1>
+          <p className="text-slate-600">Create and manage custom feature access for users and roles</p>
         </div>
         <Button onClick={() => { setSelectedFeature(null); setIsFormOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" />

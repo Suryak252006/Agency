@@ -69,9 +69,9 @@ export default function RolesPage() {
         const res = await fetch(`/api/rbac/roles?${params}`);
         if (!res.ok) throw new Error('Failed to fetch roles');
 
-        const data = await res.json();
-        setRoles(data.items);
-        setTotalPages(data.totalPages);
+        const json = await res.json();
+        setRoles(json.data?.items ?? []);
+        setTotalPages(json.data?.totalPages ?? 1);
       } catch {
         toast.error('Failed to fetch roles');
       } finally {
@@ -126,8 +126,8 @@ export default function RolesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Roles & Permissions</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Roles & Permissions</h1>
+          <p className="text-slate-600">
             Manage system roles and define permissions for your organisation
           </p>
         </div>

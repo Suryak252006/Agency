@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    // Log for error monitoring / server log capture (intentional per Next.js docs)
+    console.error('[ErrorBoundary]', error.digest ?? error.message);
   }, [error]);
 
   return (
@@ -23,16 +24,18 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-            {error.message}
-          </p>
+          {error.digest && (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500">
+              Error ID: {error.digest}
+            </p>
+          )}
           <div className="mt-5 flex gap-3">
             <Button onClick={reset} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Try again
             </Button>
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              Reload
+            <Button variant="outline" onClick={() => window.location.replace('/auth/login')}>
+              Return to login
             </Button>
           </div>
         </CardContent>

@@ -44,14 +44,6 @@
   ],
   "exclude": [
     "node_modules",
-    "tests/**",
-    "src/app/pages/**",
-    "src/app/layouts/**",
-    "src/app/App.tsx",
-    "src/app/routes.tsx",
-    "src/app/components/AttentionStudents.tsx",
-    "src/app/components/ExceptionsPanel.tsx",
-    "src/app/components/StudentMarkRow.tsx",
-    "src/app/components/figma/**"
+    "tests/**"
   ]
 }

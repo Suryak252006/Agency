@@ -74,10 +74,19 @@ Next.js listens on `$PORT` (18373) bound to `0.0.0.0`.
 - Custom feature assignments: `POST /api/rbac/custom-features/assign` (admin-only)
 
 ## Security
-- `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` via `next.config.js`
+- `Content-Security-Policy` (default-src 'self', frame-ancestors 'none', form-action 'self') via `next.config.js`
+- `Strict-Transport-Security` (1 year, includeSubDomains) — production only, via `next.config.js`
+- `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` via `next.config.js`
+- Session cookie carries server-side `exp` claim (HMAC-signed) — replay protection against stolen cookies
 - All destructive UI actions use `AlertDialog` (no `window.confirm`)
 - Mutation-only API routes return `405 Method Not Allowed` with `Allow` header for GET
+- Health endpoint (`/api/health`) returns only `{ status, dbLatencyMs }` — no environment or error details exposed
+- Error boundary (`error.tsx`) shows only `error.digest` (Next.js opaque ID) — raw error messages never reach the DOM
 - All `catch` blocks suppress noisy `console.error` leakage — errors surface via toast only
+
+## Known Operational Notes
+- Schema management uses `prisma db push` (no migration history). Adequate for Replit dev; production rollouts should use `prisma migrate deploy` with a migrations directory.
+- `prisma/seed.js` is DESTRUCTIVE (deletes all data then re-seeds). Never run in production. Use `prisma/seed-admin.cjs` (upsert-safe) for seeding a single admin user.
 
 ## Testing
 - 41 E2E tests in `tests/e2e/` run via `npx vitest run tests/e2e/`

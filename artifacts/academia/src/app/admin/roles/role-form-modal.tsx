@@ -82,8 +82,9 @@ export default function RoleFormModal({
     try {
       const res = await fetch(`/api/rbac/roles/${roleId}`);
       if (res.ok) {
-        const data = await res.json();
-        setSelectedPermissions(data.permissions.map((p: { permissionId: string }) => p.permissionId));
+        const json = await res.json();
+        const permissions = json.data?.permissions ?? json.permissions ?? [];
+        setSelectedPermissions(permissions.map((p: { permissionId: string }) => p.permissionId));
       }
     } catch {
       toast.error('Failed to load role permissions');
