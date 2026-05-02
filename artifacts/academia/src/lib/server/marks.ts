@@ -12,9 +12,10 @@ export async function assertClassAccess(user: SessionUser, classId: string) {
     where: user.role === 'admin'
       ? { id: classId, schoolId: user.schoolId }
       : { id: classId, schoolId: user.schoolId, faculty: { userId: user.id } },
-    include: {
+    select: {
+      id: true,
       faculty: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+        select: { userId: true },
       },
     },
   });

@@ -4,6 +4,7 @@ import { APP_SESSION_COOKIE, createAppSessionCookie } from '@/lib/auth/session-c
 import { db } from '@/lib/db';
 import { apiError, apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { logAuthFailure, logInfo } from '@/lib/server/logging';
+import { LoginSchema } from '@/schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +13,19 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { email, password } = body as { email?: string; password?: string };
+    const parsed = LoginSchema.safeParse(body);
 
-    if (!email || !password) {
-      return apiError('VALIDATION_ERROR', 'Email and password are required', requestId, undefined, 400);
+    if (!parsed.success) {
+      return apiError(
+        'VALIDATION_ERROR',
+        parsed.error.errors[0]?.message ?? 'Invalid input',
+        requestId,
+        undefined,
+        400,
+      );
     }
+
+    const { email, password } = parsed.data;
 
     // Fetch user by email (select password for comparison)
     const user = await db.user.findUnique({

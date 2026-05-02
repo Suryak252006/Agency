@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
+import { apiSuccess, apiError, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
 import { db } from '@/lib/db';
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     if (!marks) {
-      return NextResponse.json(apiSuccess({ marks: null, history: [] }, requestId));
+      return apiError('NOT_FOUND', 'Marks record not found', requestId, undefined, 404);
     }
 
     if (user.role === 'faculty' && marks.class.faculty.userId !== user.id) {

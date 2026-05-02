@@ -41,7 +41,35 @@ pnpm --filter @workspace/academia run dev
 ```
 Next.js listens on `$PORT` (18373) bound to `0.0.0.0`.
 
+## Auth Architecture
+- Auth is entirely cookie-based (`app_session` — HMAC-SHA256 signed JWT, 8h TTL)
+- Supabase is **not** used for auth at runtime; it's retained only for historical compatibility
+- `src/middleware.ts` enforces route protection at the Next.js edge level (redirects unauthenticated users, role-wrong users)
+- API routes use `requireSessionUser()` from `src/lib/server/session.ts`
+- Page server components use `requirePageSessionUser()` for server-side session checks
+
+## API Conventions
+- All responses use `apiSuccess(data, requestId)` or `apiError(code, msg, requestId, details, status)` from `src/lib/server/api.ts`
+- Errors are always caught by `handleApiError(error, requestId, context)`
+- All DB access uses the `db` export from `src/lib/db.ts` (canonical alias for PrismaClient)
+- `prisma` export from the same file is the legacy name — new code always uses `db`
+- Zod schemas for all request validation live in `src/schemas/index.ts`
+
+## RBAC
+- Two built-in roles: `admin` (school-wide) and `faculty` (class-scoped)
+- Extended RBAC with custom roles, permissions, and custom features lives in `src/lib/rbac/`
+- Custom feature assignments via `POST /api/rbac/custom-features/assign` (admin-only)
+
+## Security Headers
+- `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` set via `next.config.js`
+
+## Testing
+- 41 E2E tests in `tests/e2e/` run via `npx vitest run tests/e2e/`
+- 6 test files: audit-logs, custom-features, department-scope, rls-validation, role-permissions, tenant-isolation
+
 ## Notes
 - Original Next.js stack preserved — no migration to Vite/React
 - `NEXT_PUBLIC_*` env vars are Supabase credentials, not database URLs
 - Prisma client is generated from `artifacts/academia/prisma/schema.prisma`
+- `src/proxy.ts` was deleted (it was a misnamed middleware — `src/middleware.ts` is the correct file)
+- Dead code removed: `src/lib/rbac/PHASE_3_EXAMPLES.ts`, `src/lib/rbac/SECURITY_TESTS.test.ts`

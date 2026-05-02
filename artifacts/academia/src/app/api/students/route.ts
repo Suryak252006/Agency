@@ -33,8 +33,17 @@ export async function GET(request: NextRequest) {
       const [classStudents, total] = await Promise.all([
         db.classStudent.findMany({
           where,
-          include: {
-            student: true,
+          select: {
+            id: true,
+            enrolledAt: true,
+            student: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                rollNo: true,
+              },
+            },
           },
           orderBy: {
             student: {
