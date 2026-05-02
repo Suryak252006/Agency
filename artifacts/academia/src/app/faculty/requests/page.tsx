@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useCreateRequest, useRequests } from '@/lib/client/hooks';
 
+const MIN_REASON_LENGTH = 10;
+
 interface Request {
   id: string;
   type: string;
@@ -22,6 +24,8 @@ export default function FacultyRequestsPage() {
   const [reason, setReason] = useState('');
 
   const items: Request[] = requests.data?.data?.requests ?? [];
+  const reasonTrimmed = reason.trim();
+  const reasonValid = reasonTrimmed.length >= MIN_REASON_LENGTH;
 
   return (
     <div className="space-y-6">
@@ -43,7 +47,10 @@ export default function FacultyRequestsPage() {
             </p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="request-reason">Reason</Label>
+            <Label htmlFor="request-reason">
+              Reason{' '}
+              <span className="font-normal text-slate-400">(min {MIN_REASON_LENGTH} characters)</span>
+            </Label>
             <Textarea
               id="request-reason"
               value={reason}
@@ -51,13 +58,18 @@ export default function FacultyRequestsPage() {
               placeholder="Describe the reason for this request"
               rows={3}
             />
+            {reason.length > 0 && !reasonValid && (
+              <p className="text-xs text-red-600">
+                Reason must be at least {MIN_REASON_LENGTH} characters ({reasonTrimmed.length}/{MIN_REASON_LENGTH}).
+              </p>
+            )}
           </div>
           <Button
             onClick={() => {
-              createRequest.mutate({ type: 'EDIT_MARKS', reason });
+              createRequest.mutate({ type: 'EDIT_MARKS', reason: reasonTrimmed });
               setReason('');
             }}
-            disabled={!reason.trim() || createRequest.isPending}
+            disabled={!reasonValid || createRequest.isPending}
           >
             {createRequest.isPending ? 'Submitting...' : 'Submit request'}
           </Button>
