@@ -8,17 +8,24 @@ export const EmailSchema = z.string().email("Invalid email address");
 export const UrlSchema = z.string().url();
 
 /**
- * Marks Validation
+ * Marks Status
  *
- * Workflow: SUBMITTED → LOCKED → ACCEPTED
- *  - SUBMITTED: Faculty enters/edits marks (default state)
- *  - LOCKED:    Faculty locks marks (read-only, pending Admin/HOD acceptance)
- *  - ACCEPTED:  Admin or HOD accepts the locked marks (final)
+ * Workflow: SUBMITTED → LOCK_PENDING → LOCKED  (or LOCK_PENDING → SUBMITTED on rejection)
+ *
+ *  SUBMITTED    — Faculty has entered/saved marks. Editable.
+ *  LOCK_PENDING — Faculty has requested a lock. Awaiting Admin/HOD approval. Read-only.
+ *  LOCKED       — Admin/HOD approved the lock. Final and immutable.
+ *
+ * Transitions:
+ *  Faculty:    SUBMITTED    → LOCK_PENDING  (request lock)
+ *  Admin/HOD:  LOCK_PENDING → LOCKED        (approve lock request)
+ *  Admin/HOD:  LOCK_PENDING → SUBMITTED     (reject lock request)
+ *  Super Admin: can override any state
  */
 export const MarksStatusSchema = z.enum([
   "SUBMITTED",
+  "LOCK_PENDING",
   "LOCKED",
-  "ACCEPTED",
 ]);
 
 export const MarkValueSchema = z
@@ -32,6 +39,7 @@ export const MarkValueSchema = z
     { message: "Mark must be 0-100, AB, or NA" }
   );
 
+/** Faculty saves/updates a mark for a student */
 export const SaveMarkSchema = z.object({
   examId: CuidSchema,
   classId: CuidSchema,
@@ -39,20 +47,21 @@ export const SaveMarkSchema = z.object({
   value: MarkValueSchema,
 });
 
-/** Faculty locks all SUBMITTED marks for an exam+class */
-export const LockMarksSchema = z.object({
+/** Faculty requests a lock for all SUBMITTED marks in an exam+class */
+export const RequestLockSchema = z.object({
   examId: CuidSchema,
   classId: CuidSchema,
 });
 
-/** Admin/HOD accepts specific LOCKED marks by ID */
-export const AcceptMarksSchema = z.object({
+/** Admin/HOD approves a lock request — LOCK_PENDING → LOCKED */
+export const ApproveLockSchema = z.object({
   marksIds: z.array(CuidSchema).min(1),
 });
 
-export const BatchMarksStatusSchema = z.object({
+/** Admin/HOD rejects a lock request — LOCK_PENDING → SUBMITTED */
+export const RejectLockSchema = z.object({
   marksIds: z.array(CuidSchema).min(1),
-  status: z.literal("ACCEPTED"),
+  reason: z.string().min(5, "Rejection reason is required").max(500),
 });
 
 /**
@@ -232,13 +241,14 @@ export const ApiSuccessSchema = z.object({
 });
 
 /**
- * Type Exports (for TypeScript)
+ * Type Exports
  */
 export type MarksStatus = z.infer<typeof MarksStatusSchema>;
 export type MarkValue = z.infer<typeof MarkValueSchema>;
 export type SaveMark = z.infer<typeof SaveMarkSchema>;
-export type LockMarks = z.infer<typeof LockMarksSchema>;
-export type AcceptMarks = z.infer<typeof AcceptMarksSchema>;
+export type RequestLock = z.infer<typeof RequestLockSchema>;
+export type ApproveLock = z.infer<typeof ApproveLockSchema>;
+export type RejectLock = z.infer<typeof RejectLockSchema>;
 export type RequestType = z.infer<typeof RequestTypeSchema>;
 export type RequestStatus = z.infer<typeof RequestStatusSchema>;
 export type CreateRequest = z.infer<typeof CreateRequestSchema>;

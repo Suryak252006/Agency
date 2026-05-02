@@ -15,17 +15,19 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/marks
- * Fetch marks for an exam
+ * Fetch marks for an exam (optionally filtered by classId and/or status)
  */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
 
   try {
     const { searchParams } = new URL(request.url);
-    const examId = searchParams.get('examId');
-    const classId = searchParams.get('classId');
+    const query = GetMarksQuerySchema.parse({
+      examId: searchParams.get('examId'),
+      classId: searchParams.get('classId'),
+      status: searchParams.get('status') || undefined,
+    });
 
-    const query = GetMarksQuerySchema.parse({ examId, classId });
     const user = await requireSessionUser();
 
     if (user.role === 'faculty') {
@@ -49,12 +51,11 @@ export async function GET(request: NextRequest) {
         studentId: true,
         value: true,
         status: true,
+        lockRequestedAt: true,
         lockedAt: true,
-        acceptedAt: true,
+        lockedBy: true,
         updatedAt: true,
-        student: {
-          select: { id: true, name: true, rollNo: true },
-        },
+        student: { select: { id: true, name: true, rollNo: true } },
       },
     });
 
@@ -69,14 +70,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/marks
- * Save a mark entry (creates or updates in SUBMITTED status)
+ * Faculty saves/updates a mark for a student (SUBMITTED status, editable until lock request)
  */
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
 
   try {
     const parsed = await parseBody(request, SaveMarkSchema);
-
     if (!parsed.success) {
       return apiError(parsed.error.code, parsed.error.message, requestId, parsed.error.details, 400);
     }

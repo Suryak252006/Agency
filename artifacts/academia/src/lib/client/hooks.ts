@@ -5,17 +5,13 @@ import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 
 /**
- * Query key factories for consistent key generation
+ * Query key factories
  */
 export const queryKeys = {
   marks: {
     all: ['marks'] as const,
     lists: () => [...queryKeys.marks.all, 'list'] as const,
-    list: (examId: string, classId?: string) => [
-      ...queryKeys.marks.lists(),
-      examId,
-      classId,
-    ] as const,
+    list: (examId: string, classId?: string) => [...queryKeys.marks.lists(), examId, classId] as const,
     details: () => [...queryKeys.marks.all, 'detail'] as const,
     detail: (marksId: string) => [...queryKeys.marks.details(), marksId] as const,
     history: (marksId: string) => [...queryKeys.marks.detail(marksId), 'history'] as const,
@@ -23,11 +19,7 @@ export const queryKeys = {
   requests: {
     all: ['requests'] as const,
     lists: () => [...queryKeys.requests.all, 'list'] as const,
-    list: (status?: string, type?: string) => [
-      ...queryKeys.requests.lists(),
-      status,
-      type,
-    ] as const,
+    list: (status?: string, type?: string) => [...queryKeys.requests.lists(), status, type] as const,
     details: () => [...queryKeys.requests.all, 'detail'] as const,
     detail: (requestId: string) => [...queryKeys.requests.details(), requestId] as const,
   },
@@ -41,11 +33,7 @@ export const queryKeys = {
   students: {
     all: ['students'] as const,
     lists: () => [...queryKeys.students.all, 'list'] as const,
-    list: (page?: number, limit?: number) => [
-      ...queryKeys.students.lists(),
-      page,
-      limit,
-    ] as const,
+    list: (page?: number, limit?: number) => [...queryKeys.students.lists(), page, limit] as const,
   },
   exams: {
     all: ['exams'] as const,
@@ -55,23 +43,18 @@ export const queryKeys = {
   logs: {
     all: ['logs'] as const,
     lists: () => [...queryKeys.logs.all, 'list'] as const,
-    list: (action?: string, days?: number, page?: number) => [
-      ...queryKeys.logs.lists(),
-      action,
-      days,
-      page,
-    ] as const,
+    list: (action?: string, days?: number, page?: number) => [...queryKeys.logs.lists(), action, days, page] as const,
   },
 };
 
-/**
- * Hooks for Marks
- *
- * Workflow: SUBMITTED → LOCKED → ACCEPTED
- *  - Faculty saves marks  → status: SUBMITTED (editable)
- *  - Faculty locks marks  → status: LOCKED    (read-only, pending acceptance)
- *  - Admin/HOD accepts   → status: ACCEPTED   (final)
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Marks — Workflow: SUBMITTED → LOCK_PENDING → LOCKED
+//
+//  Faculty:   saveMark()      — enters/updates a mark (SUBMITTED, editable)
+//  Faculty:   requestLock()   — requests lock for exam+class (→ LOCK_PENDING)
+//  Admin/HOD: approveLock()   — approves the lock request (→ LOCKED, final)
+//  Admin/HOD: rejectLock()    — rejects the lock request  (→ SUBMITTED, editable again)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function useMarks(examId: string, classId?: string) {
   const query = new URLSearchParams({ examId });
@@ -95,67 +78,67 @@ export function useMarksHistory(marksId: string) {
   });
 }
 
-/** Faculty: save a mark for a student (SUBMITTED status, editable until locked) */
+/** Faculty: save/update a mark (SUBMITTED, editable until lock request) */
 export function useSaveMark() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: {
-      examId: string;
-      classId: string;
-      studentId: string;
-      value: string;
-    }) => apiClient.post<any>('/api/marks', data),
-    onSuccess: (_data: any, variables: { examId: string; classId: string; studentId: string; value: string }) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.marks.list(variables.examId, variables.classId),
-      });
+    mutationFn: (data: { examId: string; classId: string; studentId: string; value: string }) =>
+      apiClient.post<any>('/api/marks', data),
+    onSuccess: (_: any, v: { examId: string; classId: string; studentId: string; value: string }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.marks.list(v.examId, v.classId) });
     },
-    onError: (error: any) => {
-      console.error('Failed to save mark:', error);
-      toast.error(error.message || 'Failed to save mark');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to save mark'),
   });
 }
 
-/** Faculty: lock all submitted marks for an exam+class (SUBMITTED → LOCKED) */
-export function useLockMarks() {
+/** Faculty: request a lock for all SUBMITTED marks in an exam+class (→ LOCK_PENDING) */
+export function useRequestLock() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: { examId: string; classId: string }) =>
-      apiClient.post<any>('/api/marks/lock', data),
+    mutationFn: (data: { examId: string; classId: string }) =>
+      apiClient.post<any>('/api/marks/request-lock', data),
     onSuccess: () => {
-      toast.success('Marks locked — waiting for Admin/HOD acceptance');
+      toast.success('Lock request submitted — awaiting Admin/HOD approval');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to lock marks');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to request lock'),
   });
 }
 
-/** Admin/HOD: accept locked marks by IDs (LOCKED → ACCEPTED) */
-export function useAcceptMarks() {
+/** Admin/HOD: approve lock request (LOCK_PENDING → LOCKED) */
+export function useApproveLock() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: { marksIds: string[] }) =>
-      apiClient.post<any>('/api/marks/accept', data),
+    mutationFn: (data: { marksIds: string[] }) =>
+      apiClient.post<any>('/api/marks/approve-lock', data),
     onSuccess: () => {
-      toast.success('Marks accepted');
+      toast.success('Lock approved — marks are now locked');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to accept marks');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to approve lock'),
   });
 }
 
-/**
- * Hooks for Requests
- */
+/** Admin/HOD: reject lock request (LOCK_PENDING → SUBMITTED, marks editable again) */
+export function useRejectLock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { marksIds: string[]; reason: string }) =>
+      apiClient.post<any>('/api/marks/reject-lock', data),
+    onSuccess: () => {
+      toast.success('Lock request rejected — marks returned to faculty for editing');
+      queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to reject lock'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Requests
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useRequests(status?: string, type?: string, page = 0, limit = 20) {
   const query = new URLSearchParams();
   if (status) query.set('status', status);
@@ -173,58 +156,47 @@ export function useRequests(status?: string, type?: string, page = 0, limit = 20
 
 export function useCreateRequest() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: {
-      type: string;
-      marksId?: string;
-      reason: string;
-    }) => apiClient.post<any>('/api/requests', data),
+    mutationFn: (data: { type: string; marksId?: string; reason: string }) =>
+      apiClient.post<any>('/api/requests', data),
     onSuccess: () => {
       toast.success('Request submitted successfully');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to create request');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to create request'),
   });
 }
 
 export function useApproveRequest() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: { requestId: string; response?: string }) =>
+    mutationFn: (data: { requestId: string; response?: string }) =>
       apiClient.post<any>(`/api/requests/${data.requestId}/approve`, { response: data.response }),
     onSuccess: () => {
       toast.success('Request approved');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to approve request');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to approve request'),
   });
 }
 
 export function useRejectRequest() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (data: { requestId: string; response: string }) =>
+    mutationFn: (data: { requestId: string; response: string }) =>
       apiClient.post<any>(`/api/requests/${data.requestId}/reject`, { response: data.response }),
     onSuccess: () => {
       toast.success('Request rejected');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to reject request');
-    },
+    onError: (error: any) => toast.error(error.message || 'Failed to reject request'),
   });
 }
 
-/**
- * Hooks for Classes
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Classes
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useClasses(options?: { classId?: string; includeStudents?: boolean; page?: number; limit?: number }) {
   const page = options?.page ?? 0;
   const limit = options?.limit ?? 20;
@@ -276,9 +248,10 @@ export function useExams(classId?: string, page = 0, limit = 20) {
   });
 }
 
-/**
- * Hooks for Audit Logs
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit Logs
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useLogs(action?: string, days: number = 30, page: number = 0) {
   const query = new URLSearchParams();
   if (action) query.set('action', action);

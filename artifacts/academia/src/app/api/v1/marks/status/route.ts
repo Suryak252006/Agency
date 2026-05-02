@@ -1,5 +1,4 @@
-import { handleBatchMarksStatus } from '@/modules/academic/marks/http';
+import { handleApproveLock } from '@/modules/academic/marks/http';
 
 export const dynamic = 'force-dynamic';
-
-export const PATCH = handleBatchMarksStatus;
+export const PATCH = handleApproveLock;

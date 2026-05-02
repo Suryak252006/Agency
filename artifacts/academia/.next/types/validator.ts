@@ -227,6 +227,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/api/marks/approve-lock/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/marks/approve-lock">> = Specific
+  const handler = {} as typeof import("../../src/app/api/marks/approve-lock/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/api/marks/approve/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/marks/approve">> = Specific
@@ -240,6 +249,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/marks/lock">> = Specific
   const handler = {} as typeof import("../../src/app/api/marks/lock/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/marks/reject-lock/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/marks/reject-lock">> = Specific
+  const handler = {} as typeof import("../../src/app/api/marks/reject-lock/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/marks/request-lock/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/marks/request-lock">> = Specific
+  const handler = {} as typeof import("../../src/app/api/marks/request-lock/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
