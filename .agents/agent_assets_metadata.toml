@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "IGuVSpM6n21byb2-rbYhy"
+uri = "file://artifacts/academia/GO_LIVE_CHECKLIST.md"
+type = "text"
+title = "Academia — Go-Live Checklist"
