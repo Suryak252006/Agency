@@ -12,3 +12,9 @@ id = "zaIr7aba4J2GefM1y3X-P"
 uri = "file://artifacts/academia/ERP_IMPLEMENTATION_SPEC.md"
 type = "text"
 title = "School ERP — Implementation Specification"
+
+[[outputs]]
+id = "DEQJiriuPlUElgYl_R3yY"
+uri = "file://artifacts/academia/ERP_ENGINEERING_RUNBOOK.md"
+type = "text"
+title = "School ERP — Engineering Runbook"
