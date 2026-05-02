@@ -1,5 +1,7 @@
 export const APP_SESSION_COOKIE = 'app_session';
 
+const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 hours — must match cookie maxAge
+
 type AppSessionRole = 'admin' | 'faculty';
 
 export interface AppSessionClaims {
@@ -10,6 +12,10 @@ export interface AppSessionClaims {
   name: string;
   facultyId?: string | null;
 }
+
+type AppSessionPayload = AppSessionClaims & {
+  exp: number; // unix timestamp (seconds) — hard expiry enforced server-side
+};
 
 function getSessionSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -64,7 +70,11 @@ async function signPayload(payload: string) {
 }
 
 export async function createAppSessionCookie(claims: AppSessionClaims) {
-  const payload = encodeBase64Url(JSON.stringify(claims));
+  const sessionPayload: AppSessionPayload = {
+    ...claims,
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+  };
+  const payload = encodeBase64Url(JSON.stringify(sessionPayload));
   const signature = await signPayload(payload);
   return `${payload}.${signature}`;
 }
@@ -93,13 +103,18 @@ export async function verifyAppSessionCookie(rawCookie?: string | null): Promise
   }
 
   try {
-    const parsed = JSON.parse(decodeBase64Url(payload)) as Partial<AppSessionClaims>;
+    const parsed = JSON.parse(decodeBase64Url(payload)) as Partial<AppSessionPayload>;
 
     if (!parsed.userId || !parsed.email || !parsed.role || !parsed.schoolId || !parsed.name) {
       return null;
     }
 
     if (parsed.role !== 'admin' && parsed.role !== 'faculty') {
+      return null;
+    }
+
+    // Hard expiry check — reject the cookie even if the browser still holds it
+    if (!parsed.exp || Math.floor(Date.now() / 1000) > parsed.exp) {
       return null;
     }
 

@@ -47,9 +47,8 @@ export default function LoginPage() {
 
       toast.success('Logged in successfully');
       const redirectTo =
-        payload.redirectTo ||
-        payload.user?.redirectTo ||
-        (payload.user?.role === 'ADMIN' ? '/admin' : '/faculty');
+        payload.data?.redirectTo ||
+        (payload.data?.role === 'admin' ? '/admin' : '/faculty');
       router.replace(redirectTo);
       router.refresh();
     } catch (error: any) {

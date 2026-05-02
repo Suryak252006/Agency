@@ -1,10 +1,1 @@
-{
-  "/api/classes/[id]/route": "app/api/classes/[id]/route.js",
-  "/api/classes/route": "app/api/classes/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/rbac/roles/route": "app/api/rbac/roles/route.js",
-  "/api/marks/approve-lock/route": "app/api/marks/approve-lock/route.js",
-  "/api/rbac/custom-features/route": "app/api/rbac/custom-features/route.js",
-  "/page": "app/page.js",
-  "/auth/login/page": "app/auth/login/page.js"
-}
+{}

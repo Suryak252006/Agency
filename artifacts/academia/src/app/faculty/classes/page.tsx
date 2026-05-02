@@ -5,6 +5,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useClassDetails, useClasses, useExams, useMarks, useSaveMark, useRequestLock } from '@/lib/client/hooks';
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -13,9 +20,34 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   LOCKED:       { label: 'Locked',       className: 'bg-green-100 text-green-700' },
 };
 
+interface ClassItem {
+  id: string;
+  name: string;
+  grade: number;
+  section: string;
+}
+
+interface ExamItem {
+  id: string;
+  name: string;
+}
+
+interface StudentItem {
+  id: string;
+  name: string;
+  rollNo: string;
+}
+
+interface MarkItem {
+  studentId: string;
+  value: string;
+  status: string;
+  id: string;
+}
+
 export default function FacultyClassesPage() {
   const classes = useClasses();
-  const classItems = classes.data?.data?.classes ?? [];
+  const classItems: ClassItem[] = classes.data?.data?.classes ?? [];
 
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedExamId, setSelectedExamId] = useState('');
@@ -32,19 +64,19 @@ export default function FacultyClassesPage() {
   }, [classItems, selectedClassId]);
 
   useEffect(() => {
-    const examItems = exams.data?.data?.exams ?? [];
+    const examItems: ExamItem[] = exams.data?.data?.exams ?? [];
     setSelectedExamId((cur) =>
-      examItems.some((e: any) => e.id === cur) ? cur : examItems[0]?.id ?? ''
+      examItems.some((e) => e.id === cur) ? cur : examItems[0]?.id ?? ''
     );
   }, [exams.data]);
 
-  const students = classDetails.data?.data?.class?.students?.map((e: any) => e.student) ?? [];
-  const marksItems = selectedClassId && selectedExamId ? marks.data?.data?.marks ?? [] : [];
+  const students: StudentItem[] = classDetails.data?.data?.class?.students?.map((e: { student: StudentItem }) => e.student) ?? [];
+  const marksItems: MarkItem[] = selectedClassId && selectedExamId ? marks.data?.data?.marks ?? [] : [];
 
   const marksByStudent = useMemo(
     () =>
       Object.fromEntries(
-        marksItems.map((m: any) => [m.studentId, { value: m.value, status: m.status, id: m.id }])
+        marksItems.map((m) => [m.studentId, { value: m.value, status: m.status, id: m.id }])
       ),
     [marksItems]
   );
@@ -53,7 +85,7 @@ export default function FacultyClassesPage() {
     if (!students.length) { setValues({}); return; }
     setValues((cur) => {
       const next = { ...cur };
-      students.forEach((s: any) => {
+      students.forEach((s) => {
         next[s.id] = marksByStudent[s.id]?.value ?? cur[s.id] ?? '';
       });
       return next;
@@ -63,33 +95,36 @@ export default function FacultyClassesPage() {
   const handleSaveMarks = async () => {
     if (!selectedClassId || !selectedExamId) { toast.error('Select a class and exam first'); return; }
 
-    const changed = students.filter((s: any) => {
+    const changed = students.filter((s) => {
       const next = values[s.id]?.trim();
       return next && next !== (marksByStudent[s.id]?.value ?? '');
     });
 
     if (!changed.length) { toast.message('No changes to save'); return; }
 
-    for (const student of changed) {
-      await saveMark.mutateAsync({
-        examId: selectedExamId,
-        classId: selectedClassId,
-        studentId: student.id,
-        value: values[student.id].trim(),
-      });
-    }
+    await Promise.all(
+      changed.map((student) =>
+        saveMark.mutateAsync({
+          examId: selectedExamId,
+          classId: selectedClassId,
+          studentId: student.id,
+          value: values[student.id].trim(),
+        })
+      )
+    );
     toast.success(`${changed.length} mark(s) saved`);
   };
 
   const handleRequestLock = async () => {
     if (!selectedClassId || !selectedExamId) { toast.error('Select a class and exam first'); return; }
-    const submittedCount = marksItems.filter((m: any) => m.status === 'SUBMITTED').length;
+    const submittedCount = marksItems.filter((m) => m.status === 'SUBMITTED').length;
     if (!submittedCount) { toast.error('No submitted marks available to request lock'); return; }
     await requestLock.mutateAsync({ examId: selectedExamId, classId: selectedClassId });
   };
 
-  const hasSubmitted   = marksItems.some((m: any) => m.status === 'SUBMITTED');
-  const hasPending     = marksItems.some((m: any) => m.status === 'LOCK_PENDING');
+  const hasSubmitted = marksItems.some((m) => m.status === 'SUBMITTED');
+  const hasPending   = marksItems.some((m) => m.status === 'LOCK_PENDING');
+  const examItems: ExamItem[] = exams.data?.data?.exams ?? [];
 
   return (
     <div className="space-y-6">
@@ -116,30 +151,33 @@ export default function FacultyClassesPage() {
           <CardDescription>Only your assigned classes are available.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <select
-            className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm"
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(e.target.value)}
-          >
-            <option value="">Select class</option>
-            {classItems.map((item: any) => (
-              <option key={item.id} value={item.id}>
-                {item.name} — Grade {item.grade}{item.section}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classItems.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} — Grade {item.grade}{item.section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm"
+          <Select
             value={selectedExamId}
-            onChange={(e) => setSelectedExamId(e.target.value)}
+            onValueChange={setSelectedExamId}
             disabled={!selectedClassId}
           >
-            <option value="">Select exam</option>
-            {(exams.data?.data?.exams ?? []).map((exam: any) => (
-              <option key={exam.id} value={exam.id}>{exam.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Select exam" />
+            </SelectTrigger>
+            <SelectContent>
+              {examItems.map((exam) => (
+                <SelectItem key={exam.id} value={exam.id}>{exam.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -148,7 +186,7 @@ export default function FacultyClassesPage() {
           onClick={handleSaveMarks}
           disabled={saveMark.isPending || !students.length}
         >
-          Save marks
+          {saveMark.isPending ? 'Saving...' : 'Save marks'}
         </Button>
         <Button
           variant="outline"
@@ -156,7 +194,7 @@ export default function FacultyClassesPage() {
           disabled={requestLock.isPending || !hasSubmitted}
           title="Submits a lock request to Admin/HOD. You cannot directly lock marks."
         >
-          Request lock
+          {requestLock.isPending ? 'Requesting...' : 'Request lock'}
         </Button>
       </div>
 
@@ -167,7 +205,7 @@ export default function FacultyClassesPage() {
       )}
 
       <div className="grid gap-4">
-        {students.map((student: any) => {
+        {students.map((student) => {
           const row = marksByStudent[student.id];
           const status = row?.status ?? 'SUBMITTED';
           const readOnly = status === 'LOCK_PENDING' || status === 'LOCKED';

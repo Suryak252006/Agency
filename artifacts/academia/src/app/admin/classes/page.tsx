@@ -5,6 +5,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useApproveLock, useClasses, useExams, useMarks, useRejectLock } from '@/lib/client/hooks';
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -13,9 +20,31 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   LOCKED:       { label: 'Locked',       className: 'bg-green-100 text-green-700' },
 };
 
+interface ClassItem {
+  id: string;
+  name: string;
+  grade: number;
+  section: string;
+}
+
+interface ExamItem {
+  id: string;
+  name: string;
+}
+
+interface MarkItem {
+  id: string;
+  status: string;
+  value: string;
+  classId: string;
+  lockRequestedAt?: string;
+  lockedAt?: string;
+  student: { name: string; rollNo: string };
+}
+
 export default function AdminClassesPage() {
   const classes = useClasses();
-  const items = classes.data?.data?.classes ?? [];
+  const items: ClassItem[] = classes.data?.data?.classes ?? [];
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedExamId, setSelectedExamId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -31,16 +60,17 @@ export default function AdminClassesPage() {
   }, [items, selectedClassId]);
 
   useEffect(() => {
-    const examItems = exams.data?.data?.exams ?? [];
+    const examItems: ExamItem[] = exams.data?.data?.exams ?? [];
     setSelectedExamId((cur) =>
-      examItems.some((e: any) => e.id === cur) ? cur : examItems[0]?.id ?? ''
+      examItems.some((e) => e.id === cur) ? cur : examItems[0]?.id ?? ''
     );
   }, [exams.data]);
 
-  const marksItems = selectedClassId && selectedExamId ? marks.data?.data?.marks ?? [] : [];
+  const marksItems: MarkItem[] = selectedClassId && selectedExamId ? marks.data?.data?.marks ?? [] : [];
+  const examItems: ExamItem[] = exams.data?.data?.exams ?? [];
 
   const lockPendingIds = useMemo(
-    () => marksItems.filter((m: any) => m.status === 'LOCK_PENDING').map((m: any) => m.id),
+    () => marksItems.filter((m) => m.status === 'LOCK_PENDING').map((m) => m.id),
     [marksItems]
   );
 
@@ -52,7 +82,7 @@ export default function AdminClassesPage() {
 
   const handleReject = () => {
     if (!lockPendingIds.length) { toast.error('No lock-pending marks to reject'); return; }
-    if (!rejectReason.trim()) { toast.error('A rejection reason is required'); return; }
+    if (rejectReason.trim().length < 5) { toast.error('Rejection reason must be at least 5 characters'); return; }
     rejectLock.mutate(
       { marksIds: lockPendingIds, reason: rejectReason.trim() },
       { onSuccess: () => { setRejectReason(''); setShowRejectForm(false); } }
@@ -76,30 +106,33 @@ export default function AdminClassesPage() {
           <CardDescription>Review lock-pending marks and take action.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <select
-            className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm"
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(e.target.value)}
-          >
-            <option value="">Select class</option>
-            {items.map((item: any) => (
-              <option key={item.id} value={item.id}>
-                {item.name} — Grade {item.grade}{item.section}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} — Grade {item.grade}{item.section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm"
+          <Select
             value={selectedExamId}
-            onChange={(e) => setSelectedExamId(e.target.value)}
+            onValueChange={setSelectedExamId}
             disabled={!selectedClassId}
           >
-            <option value="">Select exam</option>
-            {(exams.data?.data?.exams ?? []).map((exam: any) => (
-              <option key={exam.id} value={exam.id}>{exam.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Select exam" />
+            </SelectTrigger>
+            <SelectContent>
+              {examItems.map((exam) => (
+                <SelectItem key={exam.id} value={exam.id}>{exam.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -114,7 +147,7 @@ export default function AdminClassesPage() {
               onClick={handleApprove}
               disabled={approveLock.isPending}
             >
-              Approve lock ({pendingCount})
+              {approveLock.isPending ? 'Approving...' : `Approve lock (${pendingCount})`}
             </Button>
             <Button
               variant="outline"
@@ -130,16 +163,19 @@ export default function AdminClassesPage() {
               <Input
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Enter reason for rejection (required)"
+                placeholder="Enter reason for rejection (required, min 5 characters)"
                 className="bg-white"
               />
+              {rejectReason.length > 0 && rejectReason.trim().length < 5 && (
+                <p className="text-xs text-red-600">Reason must be at least 5 characters.</p>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant="destructive"
                   onClick={handleReject}
-                  disabled={rejectLock.isPending || !rejectReason.trim()}
+                  disabled={rejectLock.isPending || rejectReason.trim().length < 5}
                 >
-                  Confirm rejection
+                  {rejectLock.isPending ? 'Rejecting...' : 'Confirm rejection'}
                 </Button>
                 <Button variant="ghost" onClick={() => setShowRejectForm(false)}>
                   Cancel
@@ -151,7 +187,7 @@ export default function AdminClassesPage() {
       )}
 
       <div className="grid gap-4">
-        {marksItems.map((item: any) => {
+        {marksItems.map((item) => {
           const meta = STATUS_META[item.status] ?? STATUS_META.SUBMITTED;
           return (
             <Card key={item.id}>

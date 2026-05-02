@@ -25,7 +25,7 @@ export default function AdminLogsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Audit logs</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Audit logs</h1>
         <p className="text-sm text-slate-600">
           Institution-scoped audit activity backed by the secured logs API.
         </p>
