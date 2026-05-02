@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         where,
         select: {
           id: true,
+          schoolId: true,
           name: true,
           grade: true,
           section: true,

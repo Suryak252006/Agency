@@ -1,37 +1,31 @@
-// ============================================================
-// API: Custom Features CRUD Routes
-// ============================================================
-
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAppSession } from '@/lib/supabase/middleware';
+import { db } from '@/lib/db';
+import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
+import { requireSessionUser } from '@/lib/server/session';
+
+export const dynamic = 'force-dynamic';
 
 // GET /api/rbac/custom-features
+// Admin: all custom features for the school.
+// Faculty: only features directly assigned to them (scoped by active assignments).
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
-    const appSession = await getAppSession(request);
-    if (!appSession?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const schoolId = appSession.schoolId;
+    const user = await requireSessionUser();
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const status = searchParams.get('status');
     const module = searchParams.get('module');
     const search = searchParams.get('search');
 
-    const where: any = { schoolId };
-
-    if (status) {
+    const where: Record<string, unknown> = { schoolId: user.schoolId };
+    if (status !== null && status !== '') {
       where.status = status;
     }
-
-    if (module) {
+    if (module !== null && module !== '') {
       where.module = module;
     }
-
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -40,79 +34,90 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // Faculty only see features assigned to them (with non-expired assignments)
+    if (user.role === 'faculty') {
+      where.assignments = {
+        some: {
+          userId: user.id,
+          OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+        },
+      };
+    }
+
+    // Use _count instead of loading full assignments array (avoids N+1 join)
     const [features, total] = await Promise.all([
-      prisma.customFeature.findMany({
+      db.customFeature.findMany({
         where,
-        include: { assignments: true },
+        select: {
+          id: true,
+          schoolId: true,
+          name: true,
+          key: true,
+          module: true,
+          description: true,
+          type: true,
+          scope: true,
+          status: true,
+          createdBy: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { assignments: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.customFeature.count({ where }),
+      db.customFeature.count({ where }),
     ]);
 
-    const formatted = features.map((f) => ({
+    const items = features.map(({ _count, ...f }) => ({
       ...f,
-      assignmentCount: f.assignments.length,
+      assignmentCount: _count.assignments,
     }));
 
-    return NextResponse.json({
-      items: formatted,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
-    });
+    return NextResponse.json(
+      apiSuccess({ items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) }, requestId),
+    );
   } catch (error) {
-    console.error('GET /api/rbac/custom-features error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, requestId, 'GET /api/rbac/custom-features');
   }
 }
 
-// POST /api/rbac/custom-features
+// POST /api/rbac/custom-features — create a new custom feature
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
-    const appSession = await getAppSession(request);
-    if (!appSession?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireSessionUser({ roles: ['admin'] });
 
-    // Check permission: custom_features.create
-    const permission = await prisma.roleAssignment.findFirst({
+    // Permission check: custom_features.create
+    const canCreate = await db.roleAssignment.findFirst({
       where: {
-        userId: appSession.userId,
+        userId: user.id,
         role: {
           permissions: {
-            some: {
-              permission: { key: 'custom_features.create' },
-            },
+            some: { permission: { key: 'custom_features.create' } },
           },
         },
       },
     });
-
-    if (!permission) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!canCreate) {
+      const err = Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
+      throw err;
     }
 
-    const { name, key, module, description, type, scope, status } =
-      await request.json();
+    const { name, key, module, description, type, scope, status } = await request.json();
 
-    const schoolId = appSession.schoolId;
-
-    // Check duplicate key
-    const existing = await prisma.customFeature.findUnique({
-      where: { schoolId_key: { schoolId, key } },
+    const existing = await db.customFeature.findUnique({
+      where: { schoolId_key: { schoolId: user.schoolId, key } },
     });
-
     if (existing) {
-      return NextResponse.json({ error: 'Feature key already exists' }, { status: 400 });
+      const err = Object.assign(new Error('Feature key already exists'), { code: 'CONFLICT' });
+      throw err;
     }
 
-    // Create feature
-    const feature = await prisma.customFeature.create({
+    const feature = await db.customFeature.create({
       data: {
-        schoolId,
+        schoolId: user.schoolId,
         name,
         key,
         module,
@@ -120,15 +125,14 @@ export async function POST(request: NextRequest) {
         type,
         scope,
         status,
-        createdBy: appSession.userId,
+        createdBy: user.id,
       },
     });
 
-    // Audit log
-    await prisma.rBACLog.create({
+    await db.rBACLog.create({
       data: {
-        schoolId,
-        actorId: appSession.userId,
+        schoolId: user.schoolId,
+        actorId: user.id,
         action: 'CUSTOM_FEATURE_CREATED',
         targetType: 'custom_feature',
         targetId: feature.id,
@@ -137,9 +141,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(feature, { status: 201 });
+    return NextResponse.json(apiSuccess({ feature }, requestId), { status: 201 });
   } catch (error) {
-    console.error('POST /api/rbac/custom-features error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, requestId, 'POST /api/rbac/custom-features');
   }
 }

@@ -1,32 +1,24 @@
-// ============================================================
-// API: Roles CRUD Routes
-// ============================================================
-
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { userHasAnyPermission } from '@/lib/rbac/utils';
-import { ROLE_PERMISSION_MAP } from '@/lib/rbac/constants';
-import { getAppSession } from '@/lib/supabase/middleware';
+import { db } from '@/lib/db';
+import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
+import { requireSessionUser } from '@/lib/server/session';
 
-// GET /api/roles - List all roles
+export const dynamic = 'force-dynamic';
+
+// GET /api/rbac/roles — list roles for the authenticated user's school
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
-    const appSession = await getAppSession(request);
-    if (!appSession?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const schoolId = appSession.schoolId;
+    const user = await requireSessionUser({ roles: ['admin'] });
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    // Build query
-    const where: any = { schoolId };
-    if (status !== null) {
-      where.status = status === 'active' ? true : false;
+    const where: Record<string, unknown> = { schoolId: user.schoolId };
+    if (status !== null && status !== '') {
+      where.status = status === 'active';
     }
     if (search) {
       where.OR = [
@@ -35,122 +27,103 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Fetch with pagination
+    // Use _count instead of loading full relation arrays (avoids N+1 joins)
     const [roles, total] = await Promise.all([
-      prisma.role.findMany({
+      db.role.findMany({
         where,
-        include: {
-          permissions: true,
-          userAssignments: true,
-          customFeatureAssignments: true,
+        select: {
+          id: true,
+          schoolId: true,
+          name: true,
+          description: true,
+          scope: true,
+          status: true,
+          createdBy: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              permissions: true,
+              userAssignments: true,
+              customFeatureAssignments: true,
+            },
+          },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.role.count({ where }),
+      db.role.count({ where }),
     ]);
 
-    const formattedRoles = roles.map((role) => ({
-      ...role,
-      userCount: role.userAssignments.length,
-      permissionCount: role.permissions.length,
-      featureCount: role.customFeatureAssignments.length,
+    const items = roles.map(({ _count, ...r }) => ({
+      ...r,
+      permissionCount: _count.permissions,
+      userCount: _count.userAssignments,
+      featureCount: _count.customFeatureAssignments,
     }));
 
-    return NextResponse.json({
-      items: formattedRoles,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
-    });
+    return NextResponse.json(
+      apiSuccess({ items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) }, requestId),
+    );
   } catch (error) {
-    console.error('GET /api/roles error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, requestId, 'GET /api/rbac/roles');
   }
 }
 
-// POST /api/roles - Create new role
+// POST /api/rbac/roles — create a new role
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
-    const appSession = await getAppSession(request);
-    if (!appSession?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireSessionUser({ roles: ['admin'] });
 
-    // Check permission
-    const permissions = await prisma.roleAssignment.findMany({
-      where: { userId: appSession.userId },
-      include: { role: { include: { permissions: true } } },
-    });
-
-    const userPermissions = permissions.flatMap((ra) =>
-      ra.role.permissions.map((rp) => rp.permissionId),
-    );
-
-    const canCreateRole = await prisma.permission.findFirst({
-      where: { key: 'roles.create', id: { in: userPermissions } },
-    });
-
-    if (!canCreateRole) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { name, description, scope, cloneFromRoleId, permissionIds } =
-      await request.json();
-
-    const schoolId = appSession.schoolId;
-
-    // Check for duplicate name
-    const existingRole = await prisma.role.findUnique({
-      where: { schoolId_name: { schoolId, name } },
-    });
-
-    if (existingRole) {
-      return NextResponse.json({ error: 'Role name already exists' }, { status: 400 });
-    }
-
-    // Create role
-    const newRole = await prisma.role.create({
-      data: {
-        schoolId,
-        name,
-        description,
-        scope,
-        status: true,
-        createdBy: appSession.userId,
+    // Permission check: roles.create
+    const canCreate = await db.roleAssignment.findFirst({
+      where: {
+        userId: user.id,
+        schoolId: user.schoolId,
+        role: { permissions: { some: { permission: { key: 'roles.create' } } } },
       },
     });
+    if (!canCreate) {
+      const err = Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
+      throw err;
+    }
 
-    // Assign permissions (clone or explicit)
-    let finalPermissionIds = permissionIds || [];
+    const { name, description, scope, cloneFromRoleId, permissionIds } = await request.json();
 
+    const existing = await db.role.findUnique({
+      where: { schoolId_name: { schoolId: user.schoolId, name } },
+    });
+    if (existing) {
+      const err = Object.assign(new Error('Role name already exists'), { code: 'CONFLICT' });
+      throw err;
+    }
+
+    const newRole = await db.role.create({
+      data: { schoolId: user.schoolId, name, description, scope, status: true, createdBy: user.id },
+    });
+
+    let finalPermissionIds: string[] = permissionIds || [];
     if (cloneFromRoleId) {
-      const clonedRole = await prisma.role.findUnique({
+      const source = await db.role.findUnique({
         where: { id: cloneFromRoleId },
-        include: { permissions: true },
+        select: { permissions: { select: { permissionId: true } } },
       });
-      if (clonedRole) {
-        finalPermissionIds = clonedRole.permissions.map((rp) => rp.permissionId);
-      }
+      if (source) finalPermissionIds = source.permissions.map((p) => p.permissionId);
     }
 
     if (finalPermissionIds.length > 0) {
-      await prisma.rolePermission.createMany({
-        data: finalPermissionIds.map((permId: string) => ({
-          roleId: newRole.id,
-          permissionId: permId,
-        })),
+      await db.rolePermission.createMany({
+        data: finalPermissionIds.map((permId) => ({ roleId: newRole.id, permissionId: permId })),
         skipDuplicates: true,
       });
     }
 
-    // Log action
-    await prisma.rBACLog.create({
+    await db.rBACLog.create({
       data: {
-        schoolId,
-        actorId: appSession.userId,
+        schoolId: user.schoolId,
+        actorId: user.id,
         action: 'ROLE_CREATED',
         targetType: 'role',
         targetId: newRole.id,
@@ -159,9 +132,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(newRole, { status: 201 });
+    return NextResponse.json(apiSuccess({ role: newRole }, requestId), { status: 201 });
   } catch (error) {
-    console.error('POST /api/roles error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, requestId, 'POST /api/rbac/roles');
   }
 }

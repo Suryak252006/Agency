@@ -15,55 +15,82 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/marks
- * Fetch marks for an exam (optionally filtered by classId and/or status)
+ * Fetch marks filtered by examId, classId, and/or status.
+ *
+ * Faculty:  examId + classId are both required.
+ * Admin:    all params are optional (browse across the whole school).
  */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
 
   try {
+    const user = await requireSessionUser();
     const { searchParams } = new URL(request.url);
+
     const query = GetMarksQuerySchema.parse({
-      examId: searchParams.get('examId'),
-      classId: searchParams.get('classId'),
+      examId: searchParams.get('examId') ?? undefined,
+      classId: searchParams.get('classId') ?? undefined,
       status: searchParams.get('status') || undefined,
+      page: searchParams.get('page') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
     });
 
-    const user = await requireSessionUser();
-
     if (user.role === 'faculty') {
-      if (!query.classId) {
-        return apiError('VALIDATION_ERROR', 'Faculty queries require classId', requestId, undefined, 400);
+      if (!query.examId || !query.classId) {
+        return apiError(
+          'VALIDATION_ERROR',
+          'Faculty queries require both examId and classId',
+          requestId,
+          undefined,
+          400,
+        );
       }
       await assertClassAccess(user, query.classId);
     }
 
-    const marks = await db.marks.findMany({
-      where: {
-        schoolId: user.schoolId,
-        examId: query.examId,
-        ...(query.classId ? { classId: query.classId } : {}),
-        ...(query.status ? { status: query.status } : {}),
-      },
-      select: {
-        id: true,
-        examId: true,
-        classId: true,
-        studentId: true,
-        value: true,
-        status: true,
-        lockRequestedAt: true,
-        lockedAt: true,
-        lockedBy: true,
-        updatedAt: true,
-        student: { select: { id: true, name: true, rollNo: true } },
-      },
-    });
+    const page = query.page ?? 0;
+    const limit = query.limit ?? 20;
+
+    const [marks, total] = await Promise.all([
+      db.marks.findMany({
+        where: {
+          schoolId: user.schoolId,
+          ...(query.examId ? { examId: query.examId } : {}),
+          ...(query.classId ? { classId: query.classId } : {}),
+          ...(query.status ? { status: query.status } : {}),
+        },
+        select: {
+          id: true,
+          examId: true,
+          classId: true,
+          studentId: true,
+          value: true,
+          status: true,
+          lockRequestedAt: true,
+          lockedAt: true,
+          lockedBy: true,
+          updatedAt: true,
+          student: { select: { id: true, name: true, rollNo: true } },
+        },
+        orderBy: [{ classId: 'asc' }, { studentId: 'asc' }],
+        skip: page * limit,
+        take: limit,
+      }),
+      db.marks.count({
+        where: {
+          schoolId: user.schoolId,
+          ...(query.examId ? { examId: query.examId } : {}),
+          ...(query.classId ? { classId: query.classId } : {}),
+          ...(query.status ? { status: query.status } : {}),
+        },
+      }),
+    ]);
 
     return new Response(
-      JSON.stringify(apiSuccess({ marks }, requestId)),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify(apiSuccess({ marks, total, page, limit }, requestId)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(error, requestId, 'GET /api/marks');
   }
 }
@@ -87,9 +114,9 @@ export async function POST(request: NextRequest) {
 
     return new Response(
       JSON.stringify(apiSuccess({ marksId: result.id, status: result.status, syncedAt: new Date().toISOString() }, requestId)),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(error, requestId, 'POST /api/marks');
   }
 }

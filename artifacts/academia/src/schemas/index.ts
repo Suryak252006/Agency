@@ -204,9 +204,10 @@ export const PaginationSchema = z.object({
 });
 
 export const GetMarksQuerySchema = z.object({
-  examId: CuidSchema,
+  examId: CuidSchema.optional(),
   classId: CuidSchema.optional(),
   status: MarksStatusSchema.optional(),
+  ...PaginationSchema.shape,
 });
 
 export const GetRequestsQuerySchema = z.object({
