@@ -26,7 +26,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, Search } from 'lucide-react';
 import { IRole, IPermission } from '@/types/rbac';
@@ -59,21 +58,18 @@ export default function RoleFormModal({
   const [expandedModules, setExpandedModules] = useState<string[]>([]);
   const [permissionSearch, setPermissionSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [permissionMatrix, setPermissionMatrix] = useState<any>({});
+  const [permissionMatrix, setPermissionMatrix] = useState<Record<string, { permissions: Array<Record<string, { module: string; action: string; description?: string }>> }>>({});
 
-  // Initialize form and permissions
   useEffect(() => {
     if (isOpen) {
-      // Build permission matrix
       setPermissionMatrix(buildPermissionMatrix());
 
       if (role && !isCloning) {
         setFormData({
           name: role.name,
           description: role.description || '',
-          scope: role.scope as any,
+          scope: role.scope as 'SCHOOL',
         });
-        // Load existing permissions
         loadRolePermissions(role.id);
       } else {
         setFormData({ name: '', description: '', scope: 'SCHOOL' });
@@ -87,10 +83,10 @@ export default function RoleFormModal({
       const res = await fetch(`/api/rbac/roles/${roleId}`);
       if (res.ok) {
         const data = await res.json();
-        setSelectedPermissions(data.permissions.map((p: any) => p.permissionId));
+        setSelectedPermissions(data.permissions.map((p: { permissionId: string }) => p.permissionId));
       }
-    } catch (error) {
-      console.error('Failed to load role permissions:', error);
+    } catch {
+      toast.error('Failed to load role permissions');
     }
   };
 
@@ -113,15 +109,15 @@ export default function RoleFormModal({
     );
   };
 
-  const selectAllInModule = (module: string, permissions: IPermission[]) => {
-    const permissionKeys = permissions.map((p) => Object.values(p)[0]);
-    const allSelected = permissionKeys.every((p) => selectedPermissions.includes(p as string));
+  const selectAllInModule = (module: string, permissions: Array<Record<string, { module: string; action: string; description?: string }>>) => {
+    const permissionKeys = permissions.map((p) => Object.keys(p)[0]);
+    const allSelected = permissionKeys.every((p) => selectedPermissions.includes(p));
 
     setSelectedPermissions((prev) => {
       if (allSelected) {
-        return prev.filter((p) => !permissionKeys.includes(p as any));
+        return prev.filter((p) => !permissionKeys.includes(p));
       } else {
-        return [...prev, ...permissionKeys.filter((p) => !prev.includes(p as string))];
+        return [...prev, ...permissionKeys.filter((p) => !prev.includes(p))];
       }
     });
   };
@@ -163,7 +159,6 @@ export default function RoleFormModal({
       handleClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save role');
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -178,13 +173,14 @@ export default function RoleFormModal({
   };
 
   const filteredModules = Object.entries(permissionMatrix)
-    .filter(([module, data]: any) =>
+    .filter(([module, data]) =>
       module.toLowerCase().includes(permissionSearch.toLowerCase()) ||
-      data.permissions.some((p: any) =>
-        p.description?.toLowerCase().includes(permissionSearch.toLowerCase()),
-      ),
+      data.permissions.some((p) => {
+        const permData = Object.values(p)[0];
+        return permData?.description?.toLowerCase().includes(permissionSearch.toLowerCase());
+      }),
     )
-    .reduce((acc: any, [module, data]) => {
+    .reduce<typeof permissionMatrix>((acc, [module, data]) => {
       acc[module] = data;
       return acc;
     }, {});
@@ -202,7 +198,6 @@ export default function RoleFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Info */}
           <div className="space-y-4">
             <div>
               <Label htmlFor="name">Role Name</Label>
@@ -230,9 +225,12 @@ export default function RoleFormModal({
 
             <div>
               <Label htmlFor="scope">Scope</Label>
-              <Select value={formData.scope} onValueChange={(value: any) => 
-                setFormData(prev => ({ ...prev, scope: value }))
-              }>
+              <Select
+                value={formData.scope}
+                onValueChange={(value: 'GLOBAL' | 'SCHOOL' | 'BRANCH' | 'DEPARTMENT') =>
+                  setFormData((prev) => ({ ...prev, scope: value as 'SCHOOL' }))
+                }
+              >
                 <SelectTrigger id="scope">
                   <SelectValue />
                 </SelectTrigger>
@@ -246,17 +244,15 @@ export default function RoleFormModal({
             </div>
           </div>
 
-          {/* Permissions Section */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Permissions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Clone from system role */}
-              {!role || isCloning ? (
+              {(!role || isCloning) && (
                 <div className="flex gap-2 flex-wrap">
                   <p className="text-sm text-gray-600 w-full">Clone from system role:</p>
-                  {Object.entries(ROLE_PERMISSION_MAP).map(([systemRole, _]) => (
+                  {Object.keys(ROLE_PERMISSION_MAP).map((systemRole) => (
                     <Button
                       key={systemRole}
                       type="button"
@@ -268,9 +264,8 @@ export default function RoleFormModal({
                     </Button>
                   ))}
                 </div>
-              ) : null}
+              )}
 
-              {/* Search permissions */}
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -281,10 +276,9 @@ export default function RoleFormModal({
                 />
               </div>
 
-              {/* Permission Matrix */}
               <ScrollArea className="h-96 border rounded-lg p-4">
                 <div className="space-y-3">
-                  {Object.entries(filteredModules).map(([module, data]: any) => (
+                  {Object.entries(filteredModules).map(([module, data]) => (
                     <div key={module} className="border rounded-lg p-3">
                       <div
                         className="flex items-center gap-2 cursor-pointer"
@@ -297,11 +291,12 @@ export default function RoleFormModal({
                         />
                         <span className="font-semibold capitalize">{module}</span>
                         <span className="text-xs text-gray-500">
-                          ({selectedPermissions.filter((p) =>
-                            data.permissions.some((perm: any) =>
-                              (Object.values(perm)[0] as any)?.includes(p),
-                            ),
-                          ).length}{' '}
+                          (
+                          {
+                            selectedPermissions.filter((p) =>
+                              data.permissions.some((perm) => Object.keys(perm)[0] === p),
+                            ).length
+                          }{' '}
                           / {data.permissions.length})
                         </span>
                       </div>
@@ -312,20 +307,16 @@ export default function RoleFormModal({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() =>
-                              selectAllInModule(module, data.permissions)
-                            }
+                            onClick={() => selectAllInModule(module, data.permissions)}
                           >
-                            {selectedPermissions.some((p) =>
-                              data.permissions.some((perm: any) =>
-                                (Object.values(perm)[0] as any)?.includes(p),
-                              ),
+                            {data.permissions.every((perm) =>
+                              selectedPermissions.includes(Object.keys(perm)[0]),
                             )
                               ? 'Deselect All'
                               : 'Select All'}
                           </Button>
                           <div className="space-y-2">
-                            {data.permissions.map((perm: any, idx: number) => {
+                            {data.permissions.map((perm, idx) => {
                               const permKey = Object.keys(perm)[0];
                               const permData = perm[permKey];
                               return (
@@ -356,7 +347,6 @@ export default function RoleFormModal({
             </CardContent>
           </Card>
 
-          {/* Footer */}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
               Cancel

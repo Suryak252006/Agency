@@ -100,8 +100,7 @@ export default function AssignFeatureModal({
         const data = await usersRes.json();
         setUsers(data.items);
       }
-    } catch (error) {
-      console.error('Failed to fetch roles/users:', error);
+    } catch {
       toast.error('Failed to load data');
     }
   };
@@ -157,7 +156,6 @@ export default function AssignFeatureModal({
       handleClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to assign feature');
-      console.error(error);
     } finally {
       setLoading(false);
     }

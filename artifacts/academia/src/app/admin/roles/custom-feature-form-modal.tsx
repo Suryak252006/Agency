@@ -144,7 +144,6 @@ export default function CustomFeatureFormModal({
       handleClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save feature');
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -235,7 +234,7 @@ export default function CustomFeatureFormModal({
 
           <div>
             <Label htmlFor="type">Feature Type *</Label>
-            <Select value={formData.type} onValueChange={(value: any) =>
+            <Select value={formData.type} onValueChange={(value: CustomFeatureType) =>
               setFormData(prev => ({ ...prev, type: value }))
             }>
               <SelectTrigger id="type">
@@ -253,7 +252,7 @@ export default function CustomFeatureFormModal({
 
           <div>
             <Label htmlFor="scope">Access Scope *</Label>
-            <Select value={formData.scope} onValueChange={(value: any) =>
+            <Select value={formData.scope} onValueChange={(value: AccessScope) =>
               setFormData(prev => ({ ...prev, scope: value }))
             }>
               <SelectTrigger id="scope">
@@ -269,7 +268,7 @@ export default function CustomFeatureFormModal({
 
           <div>
             <Label htmlFor="status">Status</Label>
-            <Select value={formData.status} onValueChange={(value: any) =>
+            <Select value={formData.status} onValueChange={(value: FeatureStatus) =>
               setFormData(prev => ({ ...prev, status: value }))
             }>
               <SelectTrigger id="status">

@@ -124,7 +124,7 @@ export function AppShell({ brand, title, description, navItems, primaryAction, c
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Session</p>
               <p className="mt-2 text-sm font-medium text-white">Server-verified session</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">All protected routes derive identity from Supabase auth and the school database.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Identity derived from HMAC-signed cookies validated on every request.</p>
             </div>
             <Button
               type="button"
@@ -163,10 +163,6 @@ export function AppShell({ brand, title, description, navItems, primaryAction, c
                     {primaryAction.label}
                   </Button>
                 )}
-                <Button type="button" variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  {isLoggingOut ? 'Logging out...' : 'Logout'}
-                </Button>
               </div>
             </div>
           </header>

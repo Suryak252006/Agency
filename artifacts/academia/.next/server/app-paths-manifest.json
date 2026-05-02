@@ -4,5 +4,7 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/api/rbac/roles/route": "app/api/rbac/roles/route.js",
   "/api/marks/approve-lock/route": "app/api/marks/approve-lock/route.js",
-  "/api/rbac/custom-features/route": "app/api/rbac/custom-features/route.js"
+  "/api/rbac/custom-features/route": "app/api/rbac/custom-features/route.js",
+  "/page": "app/page.js",
+  "/auth/login/page": "app/auth/login/page.js"
 }

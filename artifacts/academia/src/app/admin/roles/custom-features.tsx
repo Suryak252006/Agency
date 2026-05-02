@@ -28,9 +28,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, MoreVertical, Edit2, Copy, Trash2, Search, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, MoreVertical, Edit2, Trash2, Search, Clock } from 'lucide-react';
 import { ICustomFeature, ICustomFeatureAssignment } from '@/types/rbac';
 import CustomFeatureFormModal from './custom-feature-form-modal';
 import AssignFeatureModal from './assign-feature-modal';
@@ -47,28 +58,22 @@ export default function CustomFeaturesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<ICustomFeature | null>(null);
+  const [deleteFeatureId, setDeleteFeatureId] = useState<string | null>(null);
+  const [revokeAssignmentId, setRevokeAssignmentId] = useState<string | null>(null);
 
-  // Fetch custom features
   useEffect(() => {
     if (activeTab === 'features') {
       const fetchFeatures = async () => {
         try {
           setLoading(true);
-          const params = new URLSearchParams({
-            page: page.toString(),
-            pageSize: '10',
-            search,
-          });
-
+          const params = new URLSearchParams({ page: page.toString(), pageSize: '10', search });
           const res = await fetch(`/api/rbac/custom-features?${params}`);
           if (!res.ok) throw new Error('Failed to fetch features');
-
           const data = await res.json();
           setFeatures(data.items);
           setTotalPages(data.totalPages);
-        } catch (error) {
+        } catch {
           toast.error('Failed to fetch features');
-          console.error(error);
         } finally {
           setLoading(false);
         }
@@ -79,7 +84,6 @@ export default function CustomFeaturesPage() {
     }
   }, [search, page, activeTab]);
 
-  // Fetch assignments
   useEffect(() => {
     if (activeTab === 'assignments') {
       const fetchAssignments = async () => {
@@ -87,12 +91,10 @@ export default function CustomFeaturesPage() {
           setLoading(true);
           const res = await fetch('/api/rbac/custom-features/assignments');
           if (!res.ok) throw new Error('Failed to fetch assignments');
-
           const data = await res.json();
           setAssignments(data);
-        } catch (error) {
+        } catch {
           toast.error('Failed to fetch assignments');
-          console.error(error);
         } finally {
           setLoading(false);
         }
@@ -103,100 +105,71 @@ export default function CustomFeaturesPage() {
     }
   }, [activeTab]);
 
-  const handleCreateFeature = () => {
-    setSelectedFeature(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEditFeature = (feature: ICustomFeature) => {
-    setSelectedFeature(feature);
-    setIsFormOpen(true);
-  };
-
-  const handleAssignFeature = (feature: ICustomFeature) => {
-    setSelectedFeature(feature);
-    setIsAssignOpen(true);
-  };
-
-  const handleDeleteFeature = async (featureId: string) => {
-    if (!confirm('Are you sure? This will also delete all assignments.')) return;
-
+  const handleDeleteFeature = async () => {
+    if (!deleteFeatureId) return;
     try {
-      const res = await fetch(`/api/rbac/custom-features/${featureId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/rbac/custom-features/${deleteFeatureId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete feature');
-
-      setFeatures((prev) => prev.filter((f) => f.id !== featureId));
+      setFeatures((prev) => prev.filter((f) => f.id !== deleteFeatureId));
       toast.success('Feature deleted successfully');
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete feature');
-      console.error(error);
+    } finally {
+      setDeleteFeatureId(null);
     }
   };
 
-  const handleRevokeAssignment = async (assignmentId: string) => {
-    if (!confirm('Revoke this access?')) return;
-
+  const handleRevokeAssignment = async () => {
+    if (!revokeAssignmentId) return;
     try {
-      const res = await fetch(`/api/rbac/custom-features/assignments/${assignmentId}`, {
+      const res = await fetch(`/api/rbac/custom-features/assignments/${revokeAssignmentId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to revoke');
-
-      setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+      setAssignments((prev) => prev.filter((a) => a.id !== revokeAssignmentId));
       toast.success('Assignment revoked');
-    } catch (error) {
+    } catch {
       toast.error('Failed to revoke assignment');
-      console.error(error);
+    } finally {
+      setRevokeAssignmentId(null);
     }
   };
 
   const getStatusBadge = (assignment: ICustomFeatureAssignment) => {
-    if (assignment.declinedAt) {
-      return <Badge variant="destructive">Declined</Badge>;
-    }
-    if (assignment.expiryDate && new Date(assignment.expiryDate) < new Date()) {
+    if (assignment.declinedAt) return <Badge variant="destructive">Declined</Badge>;
+    if (assignment.expiryDate && new Date(assignment.expiryDate) < new Date())
       return <Badge variant="secondary">Expired</Badge>;
-    }
-    if (assignment.requiresAcceptance && !assignment.acceptedAt) {
+    if (assignment.requiresAcceptance && !assignment.acceptedAt)
       return <Badge variant="outline">Pending</Badge>;
-    }
     return <Badge variant="default">Active</Badge>;
   };
 
   const getDaysUntilExpiry = (expiryDate?: string | Date) => {
     if (!expiryDate) return null;
-    const days = Math.ceil(
-      (new Date(expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
-    );
+    const days = Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return days > 0 ? days : null;
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Custom Features</h1>
-          <p className="text-gray-600">
-            Create and manage custom feature access for users and roles
-          </p>
+          <p className="text-gray-600">Create and manage custom feature access for users and roles</p>
         </div>
-        <Button onClick={handleCreateFeature} className="gap-2">
+        <Button onClick={() => { setSelectedFeature(null); setIsFormOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" />
           Create Feature
         </Button>
       </div>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="features">Custom Features</TabsTrigger>
           <TabsTrigger value="assignments">Access Assignments</TabsTrigger>
         </TabsList>
 
-        {/* Features Tab */}
         <TabsContent value="features" className="space-y-4">
-          {/* Search */}
           <Card>
             <CardContent className="pt-6">
               <div className="relative">
@@ -204,17 +177,13 @@ export default function CustomFeaturesPage() {
                 <Input
                   placeholder="Search features..."
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   className="pl-10"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Features Table */}
           <Card>
             <CardHeader>
               <CardTitle>Custom Features</CardTitle>
@@ -222,9 +191,15 @@ export default function CustomFeaturesPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">Loading...</div>
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                  ))}
+                </div>
               ) : features.length === 0 ? (
-                <div className="text-center py-8 text-gray-600">No custom features found</div>
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
+                  No custom features found. Create the first one to get started.
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -249,7 +224,7 @@ export default function CustomFeaturesPage() {
                             <Badge variant="outline">{feature.type}</Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge>{feature.assignmentCount || 0}</Badge>
+                            <Badge>{feature.assignmentCount ?? 0}</Badge>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant={feature.status === 'ACTIVE' ? 'default' : 'secondary'}>
@@ -264,16 +239,16 @@ export default function CustomFeaturesPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEditFeature(feature)}>
+                                <DropdownMenuItem onClick={() => { setSelectedFeature(feature); setIsFormOpen(true); }}>
                                   <Edit2 className="h-4 w-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAssignFeature(feature)}>
+                                <DropdownMenuItem onClick={() => { setSelectedFeature(feature); setIsAssignOpen(true); }}>
                                   <Plus className="h-4 w-4 mr-2" />
                                   Assign Access
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleDeleteFeature(feature.id)}
+                                  onClick={() => setDeleteFeatureId(feature.id)}
                                   className="text-red-600"
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
@@ -292,7 +267,6 @@ export default function CustomFeaturesPage() {
           </Card>
         </TabsContent>
 
-        {/* Assignments Tab */}
         <TabsContent value="assignments" className="space-y-4">
           <Card>
             <CardHeader>
@@ -301,9 +275,15 @@ export default function CustomFeaturesPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">Loading...</div>
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                  ))}
+                </div>
               ) : assignments.length === 0 ? (
-                <div className="text-center py-8 text-gray-600">No assignments yet</div>
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
+                  No assignments yet. Assign a feature from the Custom Features tab.
+                </div>
               ) : (
                 <div className="space-y-3">
                   {assignments.map((assignment) => (
@@ -312,30 +292,22 @@ export default function CustomFeaturesPage() {
                       className="flex items-center justify-between p-4 border rounded-lg"
                     >
                       <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-semibold">{assignment.feature?.name}</p>
-                            <p className="text-sm text-gray-600">
-                              {assignment.user
-                                ? `User: ${assignment.user.name}`
-                                : `Role: ${assignment.role?.name}`}
-                            </p>
-                          </div>
-                        </div>
+                        <p className="font-semibold">{assignment.feature?.name}</p>
+                        <p className="text-sm text-gray-600">
+                          {assignment.user
+                            ? `User: ${assignment.user.name}`
+                            : `Role: ${assignment.role?.name}`}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-4">
-                        {assignment.expiryDate && getDaysUntilExpiry(assignment.expiryDate) && (
-                          <div className="flex items-center gap-2 text-sm">
+                        {assignment.expiryDate && getDaysUntilExpiry(assignment.expiryDate) !== null && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Clock className="h-4 w-4" />
-                            <span>
-                              {getDaysUntilExpiry(assignment.expiryDate)} days left
-                            </span>
+                            <span>{getDaysUntilExpiry(assignment.expiryDate)} days left</span>
                           </div>
                         )}
-
                         {getStatusBadge(assignment)}
-
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -344,7 +316,7 @@ export default function CustomFeaturesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => handleRevokeAssignment(assignment.id)}
+                              onClick={() => setRevokeAssignmentId(assignment.id)}
                               className="text-red-600"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -362,26 +334,59 @@ export default function CustomFeaturesPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Modals */}
       <CustomFeatureFormModal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        onSaved={() => {
-          setIsFormOpen(false);
-          setPage(1);
-        }}
+        onSaved={() => { setIsFormOpen(false); setPage(1); }}
         feature={selectedFeature}
       />
 
       <AssignFeatureModal
         isOpen={isAssignOpen}
         onClose={() => setIsAssignOpen(false)}
-        onSaved={() => {
-          setIsAssignOpen(false);
-          setActiveTab('assignments');
-        }}
+        onSaved={() => { setIsAssignOpen(false); setActiveTab('assignments'); }}
         feature={selectedFeature}
       />
+
+      <AlertDialog open={!!deleteFeatureId} onOpenChange={(open) => !open && setDeleteFeatureId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete feature?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the feature and all its access assignments. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteFeature}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!revokeAssignmentId} onOpenChange={(open) => !open && setRevokeAssignmentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke access?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately revoke this feature assignment. The user or role will lose access.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeAssignment}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
