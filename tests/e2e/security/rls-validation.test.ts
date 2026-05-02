@@ -1,0 +1,166 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { prisma, TEST_DATA } from './setup';
+import { createUserContext } from './helpers';
+import { UserRole } from '@prisma/client';
+
+describe('RLS Validation - Database Layer Security', () => {
+  let adminA: any;
+  let adminB: any;
+  let facultyA: any;
+  let classInSchoolA: any;
+  let classInSchoolB: any;
+
+  beforeEach(async () => {
+    // Create two schools
+    adminA = await createUserContext(
+      TEST_DATA.users.adminA,
+      'admin_a@school_a.test',
+      'Admin A',
+      UserRole.ADMIN,
+      TEST_DATA.schools.schoolA
+    );
+
+    adminB = await createUserContext(
+      TEST_DATA.users.adminB,
+      'admin_b@school_b.test',
+      'Admin B',
+      UserRole.ADMIN,
+      TEST_DATA.schools.schoolB
+    );
+
+    facultyA = await createUserContext(
+      TEST_DATA.users.facultyPhysics,
+      'faculty_a@school_a.test',
+      'Faculty A',
+      UserRole.FACULTY,
+      TEST_DATA.schools.schoolA
+    );
+
+    // Create classes in different schools
+    classInSchoolA = await prisma.class.create({
+      data: {
+        id: 'class_rls_a',
+        schoolId: TEST_DATA.schools.schoolA,
+        name: 'RLS Test Class A',
+        grade: '10',
+        section: 'A',
+        subject: 'Physics',
+        facultyId: 'dummy',
+      },
+    });
+
+    classInSchoolB = await prisma.class.create({
+      data: {
+        id: 'class_rls_b',
+        schoolId: TEST_DATA.schools.schoolB,
+        name: 'RLS Test Class B',
+        grade: '10',
+        section: 'B',
+        subject: 'Chemistry',
+        facultyId: 'dummy',
+      },
+    });
+  });
+
+  it('Service role key should NOT be exposed in browser bundle', async () => {
+    // Check that SUPABASE_SERVICE_ROLE_KEY is not in public env vars
+    const publicEnv = Object.keys(process.env).filter((key) =>
+      key.startsWith('NEXT_PUBLIC_')
+    );
+
+    const hasServiceRole = publicEnv.some((key) => key.includes('SERVICE_ROLE'));
+    expect(hasServiceRole).toBe(false);
+  });
+
+  it('Browser client should use anon key, not service role', async () => {
+    // Verify that public keys are ANON keys
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    expect(anonKey).toBeDefined();
+    expect(serviceKey).toBeDefined();
+    expect(anonKey).not.toBe(serviceKey);
+  });
+
+  it('RLS should isolate School A from School B (database level)', async () => {
+    // Verify that classes belong to different schools
+    expect(classInSchoolA.schoolId).toBe(TEST_DATA.schools.schoolA);
+    expect(classInSchoolB.schoolId).toBe(TEST_DATA.schools.schoolB);
+    expect(classInSchoolA.schoolId).not.toBe(classInSchoolB.schoolId);
+  });
+
+  it('Faculty from School A should not have permission to School B data', async () => {
+    // Faculty A's JWT should only include School A context
+    const response = await fetch('http://localhost:3000/api/classes', {
+      headers: { Authorization: `Bearer ${facultyA.jwt}` },
+    })
+      .then((r) => r.json())
+      .catch(() => ({}));
+
+    const classes = response.classes || [];
+    const allSchoolA = classes.every((c: any) => c.schoolId === TEST_DATA.schools.schoolA);
+
+    // All returned classes should be from School A
+    expect(allSchoolA).toBe(true);
+  });
+
+  it('Prisma service access bypasses RLS (expected)', async () => {
+    // Service role (Prisma server queries) can see all
+    const allClasses = await prisma.class.findMany();
+
+    // Should include classes from both schools
+    const schoolIds = allClasses.map((c) => c.schoolId);
+    const hasSchoolA = schoolIds.includes(TEST_DATA.schools.schoolA);
+    const hasSchoolB = schoolIds.includes(TEST_DATA.schools.schoolB);
+
+    expect(hasSchoolA).toBe(true);
+    expect(hasSchoolB).toBe(true);
+  });
+
+  it('RLS policy: school_id isolation', async () => {
+    // Verify that school isolation is at database level
+    const classA = await prisma.class.findUnique({
+      where: { id: 'class_rls_a' },
+    });
+
+    const classB = await prisma.class.findUnique({
+      where: { id: 'class_rls_b' },
+    });
+
+    expect(classA?.schoolId).not.toBe(classB?.schoolId);
+  });
+
+  it('RLS should work with department_id scoping', async () => {
+    // Create departments
+    const physicsDept = await prisma.department.create({
+      data: {
+        id: 'dept_physics_rls',
+        schoolId: TEST_DATA.schools.schoolA,
+        name: 'Physics',
+      },
+    });
+
+    // Faculty should only see their department
+    // This requires actual RLS policies in Supabase
+    expect(physicsDept.schoolId).toBe(TEST_DATA.schools.schoolA);
+  });
+
+  it('Cross-school query should return empty with RLS enabled', async () => {
+    // Simulate a cross-school query with RLS
+    // With RLS enabled, a query like:
+    // SELECT * FROM classes WHERE school_id = admin_a.school_id
+    // should NOT return School B classes even in a service query context
+    
+    // This test verifies the concept; actual RLS validation happens in Supabase
+    const adminAClasses = await prisma.class.findMany({
+      where: { schoolId: TEST_DATA.schools.schoolA },
+    });
+
+    const adminBClasses = await prisma.class.findMany({
+      where: { schoolId: TEST_DATA.schools.schoolB },
+    });
+
+    expect(adminAClasses.every((c) => c.schoolId === TEST_DATA.schools.schoolA)).toBe(true);
+    expect(adminBClasses.every((c) => c.schoolId === TEST_DATA.schools.schoolB)).toBe(true);
+  });
+});

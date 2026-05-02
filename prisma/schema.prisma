@@ -11,6 +11,61 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ============================================================================
+// SECURITY: Supabase Row-Level Security (RLS) Policies
+// ============================================================================
+// RLS is REQUIRED for production deployment. These policies protect sensitive
+// data at the database layer, complementing application-layer RBAC.
+//
+// SENSITIVE TABLES (enable RLS on these):
+// 1. marks - Students' grades (access: class faculty + admin + student own)
+// 2. request - Marks/access requests (access: owner + admin)
+// 3. auditlog - System audit trail (access: admin + audit readers only)
+// 4. student - Student records (access: class faculty + admin + own)
+// 5. faculty - Faculty records (access: department lead + admin)
+// 6. fileAsset - Uploaded files (access: owner + admin)
+//
+// EXAMPLE POLICY (run in Supabase SQL Editor after schema migration):
+//
+// -- Enable RLS on marks table
+// ALTER TABLE marks ENABLE ROW LEVEL SECURITY;
+//
+// -- Admin can see all marks
+// CREATE POLICY "admin_all_marks" ON marks
+//   FOR ALL USING (
+//     EXISTS (
+//       SELECT 1 FROM "user" u
+//       WHERE u.id = auth.uid() AND u.role = 'ADMIN'
+//     )
+//   );
+//
+// -- Faculty can see marks for their class students
+// CREATE POLICY "faculty_class_marks" ON marks
+//   FOR SELECT USING (
+//     EXISTS (
+//       SELECT 1 FROM faculty f
+//       JOIN class c ON f.id = c.facultyId
+//       WHERE f.userId = auth.uid() AND c.id = marks.classId
+//     )
+//   );
+//
+// -- Students can see their own marks
+// CREATE POLICY "student_own_marks" ON marks
+//   FOR SELECT USING (
+//     EXISTS (
+//       SELECT 1 FROM student s
+//       WHERE s.userId = auth.uid() AND s.id = marks.studentId
+//     )
+//   );
+//
+// IMPORTANT:
+// - RLS policies must match your RBAC logic in src/lib/rbac/utils.ts
+// - Test RLS policies with different user roles before enabling in production
+// - Audit logs must be immutable: no UPDATE/DELETE policies, SELECT only
+// - Use auth.uid() to reference current authenticated user
+// - Policies are evaluated in order; use most restrictive first
+// ============================================================================
+
 enum UserRole {
   ADMIN
   FACULTY

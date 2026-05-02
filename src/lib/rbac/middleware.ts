@@ -289,10 +289,11 @@ export async function checkPermissionMiddleware(
     const hasPermission = userHasAnyPermission(user, [requiredPermission]);
 
     if (!hasPermission) {
+      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
       await logUnauthorizedAccess(
         user.id,
         requiredPermission,
-        request.ip || 'unknown'
+        ip
       );
 
       return {
@@ -568,10 +569,11 @@ export function withPermissions(
       const hasAllPermissions = userHasAllPermissions(user, requiredPermissions);
 
       if (!hasAllPermissions) {
+        const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
         await logUnauthorizedAccess(
           user.id,
           'PERMISSION_DENIED',
-          request.ip || 'unknown',
+          ip,
           { permissions: requiredPermissions }
         );
 
@@ -622,10 +624,11 @@ export function withAnyPermission(
       const hasAnyPermission = userHasAnyPermission(user, requiredPermissions);
 
       if (!hasAnyPermission) {
+        const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
         await logUnauthorizedAccess(
           user.id,
           'PERMISSION_DENIED',
-          request.ip || 'unknown',
+          ip,
           { permissions: requiredPermissions, logic: 'OR' }
         );
 

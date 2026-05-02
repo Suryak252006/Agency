@@ -9,8 +9,8 @@ type SupabaseCookie = {
   options?: Parameters<NextResponse['cookies']['set']>[2];
 };
 
-export function createServerSupabaseClient() {
-  const cookieStore = cookies();
+export async function createServerSupabaseClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(supabaseUrl, supabasePublishableKey, {
     cookies: {

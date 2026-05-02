@@ -2,6 +2,22 @@ const { PrismaClient, UserRole, MarksStatus, RequestStatus, RequestType } = requ
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const SCHOOL_ID = process.env.DEFAULT_SCHOOL_ID || 'school_001';
+
+// ============================================================================
+// IMPORTANT: This seed script is DESTRUCTIVE (deletes existing data)
+// ============================================================================
+// Usage:
+//   Development: pnpm exec node prisma/seed.js (safe, clears dev data)
+//   Production: DO NOT USE - would destroy live data
+//
+// For idempotent seeding (safe to run multiple times):
+//   Use seed-admin.cjs which uses upsert() instead of deleteMany()
+//
+// Safer seed pattern for production:
+//   1. Use upsert() or conditional create (check if exists first)
+//   2. Never delete existing data
+//   3. Log what was seeded for audit trail
+// ============================================================================
 const indianFirstNames = [
   'Aarav',
   'Vihaan',

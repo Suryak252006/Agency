@@ -182,6 +182,7 @@ export interface IUserWithPermissions {
   name: string;
   schoolId: string;
   roles: IRole[];
+  departments?: Array<{ id: string; primary?: boolean }>;
   permissions: string[]; // Permission keys
   customFeatures: ICustomFeatureAssignment[];
   hasPermission: (permission: string) => boolean;

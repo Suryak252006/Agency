@@ -124,7 +124,7 @@ export function userHasAllPermissions(
   user: IUserWithPermissions | null,
   permissions: string[],
 ): boolean {
-  return permissions.every((perm) => userHasPermission(user, perm));
+  return permissions.every((perm) => userHasPermissionWithDepartment(user, perm));
 }
 
 /**
@@ -134,7 +134,7 @@ export function userHasAnyPermission(
   user: IUserWithPermissions | null,
   permissions: string[],
 ): boolean {
-  return permissions.some((perm) => userHasPermission(user, perm));
+  return permissions.some((perm) => userHasPermissionWithDepartment(user, perm));
 }
 
 /**
@@ -152,7 +152,7 @@ export function checkPermissionDetailed(
     return { allowed: true, by: 'role' };
   }
 
-  const customFeature = user.customFeatures.find((f) => f.key === permission);
+  const customFeature = user.customFeatures.find((f) => f.feature?.key === permission);
   if (customFeature && !isFeatureExpired(customFeature) && customFeature.acceptedAt) {
     return { allowed: true, by: 'custom_feature' };
   }
@@ -293,7 +293,7 @@ export function shouldShowMenuItem(
   requiredPermission: string | null,
 ): boolean {
   if (!requiredPermission) return true; // No permission required
-  return userHasPermission(user, requiredPermission);
+  return userHasPermissionWithDepartment(user, requiredPermission);
 }
 
 /**
@@ -315,7 +315,7 @@ export function filterByPermission<T extends { permissionKey?: string }>(
 ): T[] {
   return items.filter((item) => {
     if (!item.permissionKey) return true;
-    return userHasPermission(user, item.permissionKey);
+    return userHasPermissionWithDepartment(user, item.permissionKey);
   });
 }
 
@@ -456,5 +456,5 @@ export function getAvailableOperations(
   user: IUserWithPermissions | null,
   operations: Array<{ key: string; requiredPermission: string }>,
 ): Array<{ key: string; requiredPermission: string }> {
-  return operations.filter((op) => userHasPermission(user, op.requiredPermission));
+  return operations.filter((op) => userHasPermissionWithDepartment(user, op.requiredPermission));
 }

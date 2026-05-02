@@ -49,6 +49,11 @@ export const LockMarksSchema = z.object({
   marksIds: z.array(CuidSchema).min(1),
 });
 
+export const BatchMarksStatusSchema = z.object({
+  marksIds: z.array(CuidSchema).min(1),
+  status: z.enum(["APPROVED", "LOCKED"]),
+});
+
 /**
  * Request Validation
  */
@@ -83,6 +88,23 @@ export const RejectRequestSchema = z.object({
     .min(5, "Response required")
     .max(500),
 });
+
+export const UpdateRequestStatusSchema = z
+  .object({
+    status: RequestStatusSchema.refine((status) => status !== "PENDING", {
+      message: "Only APPROVED or REJECTED are supported",
+    }),
+    response: z.string().min(1).max(500).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === "REJECTED" && !value.response) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Response required when rejecting a request",
+        path: ["response"],
+      });
+    }
+  });
 
 /**
  * User & Auth

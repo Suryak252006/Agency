@@ -56,7 +56,8 @@ async function buildSessionUser(authUserId: string, email: string): Promise<Sess
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const appSession = await verifyAppSessionCookie(cookies().get(APP_SESSION_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const appSession = await verifyAppSessionCookie(cookieStore.get(APP_SESSION_COOKIE)?.value);
 
   if (appSession) {
     return {
@@ -70,7 +71,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
     error,

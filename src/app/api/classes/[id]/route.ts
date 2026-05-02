@@ -5,19 +5,20 @@ import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId();
 
   try {
     const user = await requireSessionUser();
     const { searchParams } = new URL(request.url);
+    const resolvedParams = await params;
     const includeStudents = searchParams.get('includeStudents') === 'true';
     const studentPage = Math.max(0, Number(searchParams.get('studentPage') ?? 0));
     const studentLimit = Math.min(Number(searchParams.get('studentLimit') ?? 20), 100); // Cap at 100
 
     const classRecord = await db.class.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         schoolId: user.schoolId,
         ...(user.role === 'faculty'
           ? {

@@ -55,10 +55,11 @@ export const queryKeys = {
   logs: {
     all: ['logs'] as const,
     lists: () => [...queryKeys.logs.all, 'list'] as const,
-    list: (action?: string, days?: number) => [
+    list: (action?: string, days?: number, page?: number) => [
       ...queryKeys.logs.lists(),
       action,
       days,
+      page,
     ] as const,
   },
 };
@@ -321,7 +322,7 @@ export function useLogs(action?: string, days: number = 30, page: number = 0) {
   query.set('page', String(page));
 
   return useQuery({
-    queryKey: queryKeys.logs.list(action, days),
+    queryKey: queryKeys.logs.list(action, days, page),
     queryFn: () => apiClient.get<any>(`/api/logs?${query.toString()}`),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

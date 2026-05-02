@@ -5,14 +5,15 @@ import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId();
 
   try {
     const user = await requireSessionUser();
+    const resolvedParams = await params;
     const marks = await db.marks.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         schoolId: user.schoolId,
       },
       select: {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const history = await db.marksHistory.findMany({
-      where: { marksId: params.id },
+      where: { marksId: resolvedParams.id },
       select: {
         id: true,
         value: true,
