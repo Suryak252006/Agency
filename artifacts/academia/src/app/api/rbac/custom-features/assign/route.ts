@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/lib/db';
 import { requireSessionUser } from '@/lib/server/session';
 import { apiSuccess, apiError, generateRequestId, handleApiError } from '@/lib/server/api';
+import { tenantDb } from '@/lib/db-tenant';
 import { CuidSchema } from '@/schemas';
 
 const AssignFeatureSchema = z
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       return apiError('FORBIDDEN', 'Admin access required', requestId, undefined, 403);
     }
 
+    const tdb = tenantDb(user.schoolId);
     const body = await request.json();
     const parsed = AssignFeatureSchema.safeParse(body);
 
@@ -46,8 +47,9 @@ export async function POST(request: NextRequest) {
     const { featureId, roleId, userId, departmentId, startDate, expiryDate, requiresAcceptance } =
       parsed.data;
 
-    const feature = await db.customFeature.findFirst({
-      where: { id: featureId, schoolId: user.schoolId },
+    // Verify the feature belongs to this school
+    const feature = await tdb.customFeature.findFirst({
+      where: { id: featureId },
       select: { id: true },
     });
 
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
       return apiError('NOT_FOUND', 'Custom feature not found', requestId, undefined, 404);
     }
 
-    const assignment = await db.customFeatureAssignment.create({
+    const assignment = await tdb.customFeatureAssignment.create({
       data: {
         schoolId: user.schoolId,
         featureId,
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await db.rBACLog.create({
+    await tdb.rBACLog.create({
       data: {
         schoolId: user.schoolId,
         actorId: user.id,

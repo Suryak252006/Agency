@@ -72,8 +72,14 @@ export async function cleanupTestData(): Promise<void> {
   });
   await prisma.department.deleteMany({ where: { schoolId: { in: TEST_SCHOOL_IDS } } });
 
-  // 7. Users last (all FK references above must be cleared first)
+  // 7. SchoolConfig before Tenant
+  await prisma.schoolConfig.deleteMany({ where: { schoolId: { in: TEST_SCHOOL_IDS } } });
+
+  // 8. Users last (all FK references above must be cleared first)
   await prisma.user.deleteMany({ where: { schoolId: { in: TEST_SCHOOL_IDS } } });
+
+  // 9. Tenant records last (User → Tenant is Restrict, so User must be deleted first)
+  await prisma.tenant.deleteMany({ where: { id: { in: TEST_SCHOOL_IDS } } });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +87,36 @@ export async function cleanupTestData(): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function ensureGlobalSetup(): Promise<void> {
   const { schools, users, faculty, departments } = TEST_DATA;
+
+  // ── Tenant records — must exist before any User (FK constraint) ────────────
+  const tenantSeeds = [
+    {
+      id: schools.schoolA,
+      slug: 'school-a-test',
+      name: 'School A (Test)',
+      board: 'CBSE' as const,
+      subscriptionTier: 'PROFESSIONAL' as const,
+      subscriptionStatus: 'ACTIVE' as const,
+      isActive: true,
+    },
+    {
+      id: schools.schoolB,
+      slug: 'school-b-test',
+      name: 'School B (Test)',
+      board: 'CBSE' as const,
+      subscriptionTier: 'PROFESSIONAL' as const,
+      subscriptionStatus: 'ACTIVE' as const,
+      isActive: true,
+    },
+  ];
+
+  for (const t of tenantSeeds) {
+    await prisma.tenant.upsert({
+      where: { id: t.id },
+      update: { name: t.name, isActive: t.isActive },
+      create: t,
+    });
+  }
 
   // ── Users ──────────────────────────────────────────────────────────────────
   const userSeeds = [
@@ -102,17 +138,12 @@ export async function ensureGlobalSetup(): Promise<void> {
   }
 
   // ── Faculty records — robust: remove any conflicting record first ──────────
-  // A conflict can occur when a record exists with our target `id` but a
-  // different `userId`, or vice versa. Clean both before upserting.
   for (const [uid, fid, sid] of [
     [users.facultyPhysics, faculty.physics, schools.schoolA],
     [users.facultyMath,    faculty.math,    schools.schoolA],
   ] as const) {
-    // Delete any faculty with our target id (but wrong userId)
     await prisma.faculty.deleteMany({ where: { id: fid, NOT: { userId: uid } } });
-    // Delete any faculty for this user (but wrong id)
     await prisma.faculty.deleteMany({ where: { userId: uid, NOT: { id: fid } } });
-    // Now safe to upsert
     await prisma.faculty.upsert({
       where: { userId: uid },
       create: { id: fid, userId: uid, schoolId: sid },
@@ -128,7 +159,6 @@ export async function ensureGlobalSetup(): Promise<void> {
   ];
 
   for (const d of deptSeeds) {
-    // Handle unique-on-schoolId+name: delete any stale record with same school+name but diff id
     await prisma.department.deleteMany({ where: { schoolId: d.schoolId, name: d.name, NOT: { id: d.id } } });
     await prisma.department.upsert({
       where: { id: d.id },

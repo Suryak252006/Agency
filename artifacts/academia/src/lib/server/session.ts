@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { APP_SESSION_COOKIE, verifyAppSessionCookie } from '@/lib/auth/session-cookie';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
+import { APP_SESSION_COOKIE, type AppSessionRole, verifyAppSessionCookie } from '@/lib/auth/session-cookie';
 
-export type AppRole = 'admin' | 'faculty';
+export type AppRole = AppSessionRole;
 
 export interface SessionUser {
   id: string;
@@ -26,62 +24,48 @@ function makeError(code: string, message: string) {
   return error;
 }
 
-function toAppRole(role: 'ADMIN' | 'FACULTY'): AppRole {
-  return role === 'ADMIN' ? 'admin' : 'faculty';
+/**
+ * Returns true if the session role grants access to the admin portal.
+ * admin = DB role ADMIN
+ * All three map to the same portal; RBAC handles fine-grained permissions.
+ */
+export function isAdminPortalRole(role: AppRole): boolean {
+  return role === 'admin';
 }
 
-async function buildSessionUser(authUserId: string, email: string): Promise<SessionUser | null> {
-  const user = await db.user.findUnique({
-    where: { email },
-    include: {
-      faculty: {
-        select: { id: true },
-      },
-    },
-  });
-
-  if (!user) {
-    return null;
+/**
+ * Returns the home portal path for a given session role.
+ */
+export function homeForRole(role: AppRole): string {
+  switch (role) {
+    case 'admin':
+      return '/admin';
+    case 'faculty':
+      return '/faculty';
+    case 'parent':
+      return '/parent';
+    default:
+      return '/auth/login';
   }
-
-  return {
-    id: user.id,
-    authUserId,
-    email: user.email,
-    role: toAppRole(user.role),
-    schoolId: user.schoolId,
-    name: user.name,
-    facultyId: user.faculty?.id ?? null,
-  };
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const appSession = await verifyAppSessionCookie(cookieStore.get(APP_SESSION_COOKIE)?.value);
 
-  if (appSession) {
-    return {
-      id: appSession.userId,
-      authUserId: appSession.userId,
-      email: appSession.email,
-      role: appSession.role,
-      schoolId: appSession.schoolId,
-      name: appSession.name,
-      facultyId: appSession.facultyId ?? null,
-    };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user?.email) {
+  if (!appSession) {
     return null;
   }
 
-  return buildSessionUser(user.id, user.email);
+  return {
+    id: appSession.userId,
+    authUserId: appSession.userId,
+    email: appSession.email,
+    role: appSession.role,
+    schoolId: appSession.schoolId,
+    name: appSession.name,
+    facultyId: appSession.facultyId ?? null,
+  };
 }
 
 export async function requireSessionUser(options: SessionOptions = {}) {
@@ -98,15 +82,21 @@ export async function requireSessionUser(options: SessionOptions = {}) {
   return user;
 }
 
-export async function requirePageSessionUser(role?: AppRole) {
+/**
+ * For use in Server Components / page.tsx files.
+ * Redirects to login if no session. Redirects to home portal if wrong role.
+ *
+ * @param portalRole  'admin' | 'faculty' | 'parent' — the portal being accessed.
+ */
+export async function requirePageSessionUser(portalRole?: 'admin' | 'faculty' | 'parent') {
   const user = await getSessionUser();
 
   if (!user) {
     redirect('/auth/login');
   }
 
-  if (role && user.role !== role) {
-    redirect(user.role === 'admin' ? '/admin' : '/faculty');
+  if (portalRole && user.role !== portalRole) {
+    redirect(homeForRole(user.role));
   }
 
   return user;

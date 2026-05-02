@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 import type { SessionUser } from '@/lib/server/session';
 
 export interface AuditLogFilters {
@@ -9,19 +9,17 @@ export interface AuditLogFilters {
 }
 
 export async function listAuditLogs(user: SessionUser, filters: AuditLogFilters) {
+  const tdb = tenantDb(user.schoolId);
   const since = new Date();
   since.setDate(since.getDate() - filters.days);
 
   const where = {
-    schoolId: user.schoolId,
-    createdAt: {
-      gte: since,
-    },
+    createdAt: { gte: since },
     ...(filters.action ? { action: filters.action } : {}),
   };
 
   const [logs, total] = await Promise.all([
-    db.auditLog.findMany({
+    tdb.auditLog.findMany({
       where,
       select: {
         id: true,
@@ -34,24 +32,15 @@ export async function listAuditLogs(user: SessionUser, filters: AuditLogFilters)
         ipAddress: true,
         createdAt: true,
         user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+          select: { id: true, name: true, email: true },
         },
       },
       orderBy: { createdAt: 'desc' },
       skip: filters.page * filters.pageSize,
       take: filters.pageSize,
     }),
-    db.auditLog.count({ where }),
+    tdb.auditLog.count({ where }),
   ]);
 
-  return {
-    logs,
-    total,
-    page: filters.page,
-    pageSize: filters.pageSize,
-  };
+  return { logs, total, page: filters.page, pageSize: filters.pageSize };
 }

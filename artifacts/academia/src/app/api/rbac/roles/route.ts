@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,13 +11,14 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
   try {
     const user = await requireSessionUser({ roles: ['admin'] });
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    const where: Record<string, unknown> = { schoolId: user.schoolId };
+    const where: Record<string, unknown> = {};
     if (status !== null && status !== '') {
       where.status = status === 'active';
     }
@@ -27,9 +29,8 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Use _count instead of loading full relation arrays (avoids N+1 joins)
     const [roles, total] = await Promise.all([
-      db.role.findMany({
+      tdb.role.findMany({
         where,
         select: {
           id: true,
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      db.role.count({ where }),
+      tdb.role.count({ where }),
     ]);
 
     const items = roles.map(({ _count, ...r }) => ({
@@ -76,36 +77,34 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
   try {
     const user = await requireSessionUser({ roles: ['admin'] });
+    const tdb = tenantDb(user.schoolId);
 
-    // Permission check: roles.create
-    const canCreate = await db.roleAssignment.findFirst({
+    // Permission check: roles.create — scoped to this tenant via tdb
+    const canCreate = await tdb.roleAssignment.findFirst({
       where: {
         userId: user.id,
-        schoolId: user.schoolId,
         role: { permissions: { some: { permission: { key: 'roles.create' } } } },
       },
     });
     if (!canCreate) {
-      const err = Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
-      throw err;
+      throw Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
     }
 
     const { name, description, scope, cloneFromRoleId, permissionIds } = await request.json();
 
-    const existing = await db.role.findUnique({
-      where: { schoolId_name: { schoolId: user.schoolId, name } },
-    });
+    // findFirst so tenantDb injects schoolId — (schoolId, name) is effectively unique
+    const existing = await tdb.role.findFirst({ where: { name } });
     if (existing) {
-      const err = Object.assign(new Error('Role name already exists'), { code: 'CONFLICT' });
-      throw err;
+      throw Object.assign(new Error('Role name already exists'), { code: 'CONFLICT' });
     }
 
-    const newRole = await db.role.create({
+    const newRole = await tdb.role.create({
       data: { schoolId: user.schoolId, name, description, scope, status: true, createdBy: user.id },
     });
 
     let finalPermissionIds: string[] = permissionIds || [];
     if (cloneFromRoleId) {
+      // Source role lookup is by id only — use db directly (findUnique)
       const source = await db.role.findUnique({
         where: { id: cloneFromRoleId },
         select: { permissions: { select: { permissionId: true } } },
@@ -114,13 +113,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (finalPermissionIds.length > 0) {
+      // rolePermission has no schoolId — use db directly
       await db.rolePermission.createMany({
         data: finalPermissionIds.map((permId) => ({ roleId: newRole.id, permissionId: permId })),
         skipDuplicates: true,
       });
     }
 
-    await db.rBACLog.create({
+    await tdb.rBACLog.create({
       data: {
         schoolId: user.schoolId,
         actorId: user.id,

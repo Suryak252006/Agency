@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
-import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,27 +10,23 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const classId = searchParams.get('classId') ?? undefined;
     const includeStudents = searchParams.get('includeStudents') === 'true';
     const includeFaculty = searchParams.get('includeFaculty') === 'true';
     const page = Number(searchParams.get('page') ?? 0);
-    const limit = Math.min(Number(searchParams.get('limit') ?? 20), 100); // Cap at 100 to prevent DDoS
+    const limit = Math.min(Number(searchParams.get('limit') ?? 20), 100);
 
     const where = {
-      schoolId: user.schoolId,
       ...(classId ? { id: classId } : {}),
       ...(user.role === 'faculty'
-        ? {
-            faculty: {
-              userId: user.id,
-            },
-          }
+        ? { faculty: { userId: user.id } }
         : {}),
     };
 
     const [classes, total] = await Promise.all([
-      db.class.findMany({
+      tdb.class.findMany({
         where,
         select: {
           id: true,
@@ -59,11 +55,7 @@ export async function GET(request: NextRequest) {
                       select: { id: true, name: true, email: true, rollNo: true },
                     },
                   },
-                  orderBy: {
-                    student: {
-                      name: 'asc',
-                    },
-                  },
+                  orderBy: { student: { name: 'asc' } },
                 },
               }
             : {}),
@@ -73,7 +65,7 @@ export async function GET(request: NextRequest) {
         skip: page * limit,
         take: limit,
       }),
-      db.class.count({ where }),
+      tdb.class.count({ where }),
     ]);
 
     return NextResponse.json(apiSuccess({ classes, total, page, limit }, requestId));

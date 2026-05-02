@@ -2,7 +2,12 @@ export const APP_SESSION_COOKIE = 'app_session';
 
 const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 hours — must match cookie maxAge
 
-type AppSessionRole = 'admin' | 'faculty';
+// Sprint 1: added 'parent' role.
+// ADMIN, PRINCIPAL, ACCOUNTANT all map to 'admin' (same portal, RBAC handles fine-grained perms).
+// PARENT maps to 'parent' (parent portal).
+export type AppSessionRole = 'admin' | 'faculty' | 'parent';
+
+const VALID_ROLES: ReadonlySet<AppSessionRole> = new Set(['admin', 'faculty', 'parent']);
 
 export interface AppSessionClaims {
   userId: string;
@@ -109,7 +114,7 @@ export async function verifyAppSessionCookie(rawCookie?: string | null): Promise
       return null;
     }
 
-    if (parsed.role !== 'admin' && parsed.role !== 'faculty') {
+    if (!VALID_ROLES.has(parsed.role as AppSessionRole)) {
       return null;
     }
 
@@ -121,7 +126,7 @@ export async function verifyAppSessionCookie(rawCookie?: string | null): Promise
     return {
       userId: parsed.userId,
       email: parsed.email,
-      role: parsed.role,
+      role: parsed.role as AppSessionRole,
       schoolId: parsed.schoolId,
       name: parsed.name,
       facultyId: parsed.facultyId ?? null,

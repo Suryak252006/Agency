@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
 import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,22 +11,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const classId = searchParams.get('classId') ?? undefined;
     const page = Number(searchParams.get('page') ?? 0);
-    const limit = Math.min(Number(searchParams.get('limit') ?? 100), 250); // Cap at 250
+    const limit = Math.min(Number(searchParams.get('limit') ?? 100), 250);
 
     if (classId) {
+      // classStudent has no direct schoolId — scope via nested class filter
       const where = {
         classId,
         class: {
           schoolId: user.schoolId,
           ...(user.role === 'faculty'
-            ? {
-                faculty: {
-                  userId: user.id,
-                },
-              }
+            ? { faculty: { userId: user.id } }
             : {}),
         },
       };
@@ -37,37 +36,29 @@ export async function GET(request: NextRequest) {
             id: true,
             enrolledAt: true,
             student: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                rollNo: true,
-              },
+              select: { id: true, name: true, email: true, rollNo: true },
             },
           },
-          orderBy: {
-            student: {
-              name: 'asc',
-            },
-          },
+          orderBy: { student: { name: 'asc' } },
           skip: page * limit,
           take: limit,
         }),
         db.classStudent.count({ where }),
       ]);
 
-      return NextResponse.json(apiSuccess({ students: classStudents.map((entry) => entry.student), total, page, limit }, requestId));
+      return NextResponse.json(
+        apiSuccess({ students: classStudents.map((entry) => entry.student), total, page, limit }, requestId)
+      );
     }
 
-    const where = { schoolId: user.schoolId };
     const [students, total] = await Promise.all([
-      db.student.findMany({
-        where,
+      tdb.student.findMany({
+        where: {},
         orderBy: { name: 'asc' },
         skip: page * limit,
         take: limit,
       }),
-      db.student.count({ where }),
+      tdb.student.count({}),
     ]);
 
     return NextResponse.json(apiSuccess({ students, total, page, limit }, requestId));

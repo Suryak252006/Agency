@@ -399,6 +399,7 @@ export async function checkSuperAdminMiddleware(
     const superAdminRole = await db.role.findFirst({
       where: {
         systemRole: 'SUPER_ADMIN',
+        schoolId: user.schoolId,
       },
     });
 

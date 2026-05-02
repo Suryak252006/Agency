@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { apiSuccess, apiError, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
 import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +11,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const resolvedParams = await params;
-    const marks = await db.marks.findFirst({
-      where: {
-        id: resolvedParams.id,
-        schoolId: user.schoolId,
-      },
+
+    const marks = await tdb.marks.findFirst({
+      where: { id: resolvedParams.id },
       select: {
         id: true,
         examId: true,
@@ -28,9 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             id: true,
             name: true,
             facultyId: true,
-            faculty: {
-              select: { userId: true },
-            },
+            faculty: { select: { userId: true } },
           },
         },
       },
@@ -44,6 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
     }
 
+    // marksHistory has no schoolId — scope via marksId (already verified ownership above)
     const history = await db.marksHistory.findMany({
       where: { marksId: resolvedParams.id },
       select: {

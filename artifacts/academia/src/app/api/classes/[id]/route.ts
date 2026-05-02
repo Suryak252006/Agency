@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
-import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,22 +10,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const resolvedParams = await params;
     const includeStudents = searchParams.get('includeStudents') === 'true';
     const studentPage = Math.max(0, Number(searchParams.get('studentPage') ?? 0));
-    const studentLimit = Math.min(Number(searchParams.get('studentLimit') ?? 20), 100); // Cap at 100
+    const studentLimit = Math.min(Number(searchParams.get('studentLimit') ?? 20), 100);
 
-    const classRecord = await db.class.findFirst({
+    const classRecord = await tdb.class.findFirst({
       where: {
         id: resolvedParams.id,
-        schoolId: user.schoolId,
         ...(user.role === 'faculty'
-          ? {
-              faculty: {
-                userId: user.id,
-              },
-            }
+          ? { faculty: { userId: user.id } }
           : {}),
       },
       select: {
@@ -41,9 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           select: {
             id: true,
             userId: true,
-            user: {
-              select: { id: true, name: true, email: true },
-            },
+            user: { select: { id: true, name: true, email: true } },
           },
         },
         _count: { select: { students: true, marks: true } },
@@ -57,9 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                     select: { id: true, name: true, email: true, rollNo: true },
                   },
                 },
-                orderBy: {
-                  student: { name: 'asc' },
-                },
+                orderBy: { student: { name: 'asc' } },
                 skip: studentPage * studentLimit,
                 take: studentLimit,
               },

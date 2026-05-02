@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 import type { SessionUser } from '@/lib/server/session';
 
 function makeError(code: string, message: string) {
@@ -8,15 +9,14 @@ function makeError(code: string, message: string) {
 }
 
 export async function assertClassAccess(user: SessionUser, classId: string) {
-  const classRecord = await db.class.findFirst({
+  const tdb = tenantDb(user.schoolId);
+  const classRecord = await tdb.class.findFirst({
     where: user.role === 'admin'
-      ? { id: classId, schoolId: user.schoolId }
-      : { id: classId, schoolId: user.schoolId, faculty: { userId: user.id } },
+      ? { id: classId }
+      : { id: classId, faculty: { userId: user.id } },
     select: {
       id: true,
-      faculty: {
-        select: { userId: true },
-      },
+      faculty: { select: { userId: true } },
     },
   });
 
@@ -30,10 +30,10 @@ export async function assertClassAccess(user: SessionUser, classId: string) {
 export async function assertExamAccess(user: SessionUser, examId: string, classId: string) {
   await assertClassAccess(user, classId);
 
-  const exam = await db.exam.findFirst({
+  const tdb = tenantDb(user.schoolId);
+  const exam = await tdb.exam.findFirst({
     where: {
       id: examId,
-      schoolId: user.schoolId,
       OR: [{ classId }, { classId: null }],
     },
   });
@@ -48,16 +48,16 @@ export async function assertExamAccess(user: SessionUser, examId: string, classI
  * Rules:
  *  - ADMIN → can approve for any class in their school
  *  - FACULTY who is a HOD (i.e. is the `headId` of a Department in their school)
- *    → can approve for any class in their school (department-scoped enforcement
- *      is done at the query level by checking class ownership within the dept)
+ *    → can approve for any class in their school
  *  - Plain FACULTY → cannot approve
  */
 async function assertCanApproveLock(user: SessionUser, classId: string) {
-  if (user.role === 'admin') return; // Admin: full access
+  if (user.role === 'admin') return;
 
-  // Check if this faculty member is a HOD of any department in this school
-  const hodDept = await db.department.findFirst({
-    where: { schoolId: user.schoolId, headId: user.id },
+  const tdb = tenantDb(user.schoolId);
+
+  const hodDept = await tdb.department.findFirst({
+    where: { headId: user.id },
     select: { id: true },
   });
 
@@ -65,10 +65,8 @@ async function assertCanApproveLock(user: SessionUser, classId: string) {
     throw makeError('FORBIDDEN', 'Only Admin or HOD can approve or reject lock requests');
   }
 
-  // HOD dept-scoped check: verify the class belongs to this school
-  // (finer dept-class relationship enforcement can be added when dept→class link exists)
-  const cls = await db.class.findFirst({
-    where: { id: classId, schoolId: user.schoolId },
+  const cls = await tdb.class.findFirst({
+    where: { id: classId },
     select: { id: true },
   });
 
@@ -91,6 +89,7 @@ export async function createAuditLog(
 
 /**
  * Record a marks history entry for full audit trail.
+ * marksHistory has no schoolId — scoped via the parent marksId FK.
  */
 async function addMarksHistory(
   marksId: string,
@@ -100,13 +99,7 @@ async function addMarksHistory(
   reason?: string
 ) {
   return db.marksHistory.create({
-    data: {
-      marksId,
-      value,
-      status: status as any,
-      changedBy,
-      reason,
-    },
+    data: { marksId, value, status: status as any, changedBy, reason },
   });
 }
 
@@ -126,14 +119,15 @@ export async function saveMark(
   value: string,
   user: SessionUser
 ) {
+  const tdb = tenantDb(user.schoolId);
   await assertExamAccess(user, examId, classId);
 
-  const exam = await db.exam.findUnique({
+  // Exam validation — use tdb so schoolId is auto-injected
+  const exam = await tdb.exam.findFirst({
     where: { id: examId },
-    select: { maxMarks: true, schoolId: true },
+    select: { maxMarks: true },
   });
   if (!exam) throw makeError('NOT_FOUND', 'Exam not found');
-  if (exam.schoolId !== user.schoolId) throw makeError('FORBIDDEN', 'Exam access denied');
 
   if (value !== 'AB' && value !== 'NA') {
     const numValue = parseInt(value, 10);
@@ -142,13 +136,16 @@ export async function saveMark(
     }
   }
 
+  // classStudent has no schoolId — scope via FK
   const enrollment = await db.classStudent.findUnique({
     where: { classId_studentId: { classId, studentId } },
   });
   if (!enrollment) throw makeError('NOT_FOUND', 'Student is not enrolled in this class');
 
+  // Check existing mark state
   const existing = await db.marks.findUnique({
     where: { examId_studentId: { examId, studentId } },
+    select: { id: true, schoolId: true, status: true },
   });
 
   if (existing?.schoolId && existing.schoolId !== user.schoolId) {
@@ -162,6 +159,7 @@ export async function saveMark(
     throw makeError('CONFLICT', 'Cannot edit locked marks. Submit an edit request.');
   }
 
+  // upsert: create always sets schoolId explicitly via create clause
   const saved = await db.marks.upsert({
     where: { examId_studentId: { examId, studentId } },
     update: { value, classId, updatedAt: new Date() },
@@ -177,13 +175,13 @@ export async function saveMark(
 /**
  * Faculty requests a lock for all SUBMITTED marks in an exam+class.
  * Transitions: SUBMITTED → LOCK_PENDING
- * Faculty cannot directly lock — Admin/HOD must approve.
  */
 export async function requestLock(examId: string, classId: string, user: SessionUser) {
+  const tdb = tenantDb(user.schoolId);
   await assertExamAccess(user, examId, classId);
 
-  const submittedMarks = await db.marks.findMany({
-    where: { schoolId: user.schoolId, examId, classId, status: 'SUBMITTED' },
+  const submittedMarks = await tdb.marks.findMany({
+    where: { examId, classId, status: 'SUBMITTED' },
     select: { id: true, value: true },
   });
 
@@ -192,12 +190,11 @@ export async function requestLock(examId: string, classId: string, user: Session
   }
 
   const now = new Date();
-  await db.marks.updateMany({
-    where: { schoolId: user.schoolId, examId, classId, status: 'SUBMITTED' },
+  await tdb.marks.updateMany({
+    where: { examId, classId, status: 'SUBMITTED' },
     data: { status: 'LOCK_PENDING', lockRequestedAt: now },
   });
 
-  // Audit history for each mark
   await Promise.all(
     submittedMarks.map((m) => addMarksHistory(m.id, m.value, 'LOCK_PENDING', user.id))
   );
@@ -217,12 +214,12 @@ export async function requestLock(examId: string, classId: string, user: Session
 /**
  * Admin or HOD approves a lock request.
  * Transitions: LOCK_PENDING → LOCKED
- * HOD: department-scoped (checked via Department.headId).
- * Admin: all departments.
  */
 export async function approveLock(marksIds: string[], user: SessionUser) {
-  const marksToLock = await db.marks.findMany({
-    where: { id: { in: marksIds }, schoolId: user.schoolId, status: 'LOCK_PENDING' },
+  const tdb = tenantDb(user.schoolId);
+
+  const marksToLock = await tdb.marks.findMany({
+    where: { id: { in: marksIds }, status: 'LOCK_PENDING' },
     select: { id: true, classId: true, value: true },
   });
 
@@ -230,15 +227,14 @@ export async function approveLock(marksIds: string[], user: SessionUser) {
     throw makeError('FORBIDDEN', 'Some marks not found or not in LOCK_PENDING status');
   }
 
-  // Scope check per unique classId
   const uniqueClassIds = [...new Set(marksToLock.map((m) => m.classId))];
   for (const classId of uniqueClassIds) {
     await assertCanApproveLock(user, classId);
   }
 
   const now = new Date();
-  await db.marks.updateMany({
-    where: { id: { in: marksIds }, schoolId: user.schoolId, status: 'LOCK_PENDING' },
+  await tdb.marks.updateMany({
+    where: { id: { in: marksIds }, status: 'LOCK_PENDING' },
     data: { status: 'LOCKED', lockedAt: now, lockedBy: user.id },
   });
 
@@ -258,12 +254,12 @@ export async function approveLock(marksIds: string[], user: SessionUser) {
 /**
  * Admin or HOD rejects a lock request.
  * Transitions: LOCK_PENDING → SUBMITTED (marks become editable again).
- * HOD: department-scoped.
- * Admin: all departments.
  */
 export async function rejectLock(marksIds: string[], reason: string, user: SessionUser) {
-  const marksToReject = await db.marks.findMany({
-    where: { id: { in: marksIds }, schoolId: user.schoolId, status: 'LOCK_PENDING' },
+  const tdb = tenantDb(user.schoolId);
+
+  const marksToReject = await tdb.marks.findMany({
+    where: { id: { in: marksIds }, status: 'LOCK_PENDING' },
     select: { id: true, classId: true, value: true },
   });
 
@@ -276,8 +272,8 @@ export async function rejectLock(marksIds: string[], reason: string, user: Sessi
     await assertCanApproveLock(user, classId);
   }
 
-  await db.marks.updateMany({
-    where: { id: { in: marksIds }, schoolId: user.schoolId, status: 'LOCK_PENDING' },
+  await tdb.marks.updateMany({
+    where: { id: { in: marksIds }, status: 'LOCK_PENDING' },
     data: { status: 'SUBMITTED', lockRequestedAt: null },
   });
 

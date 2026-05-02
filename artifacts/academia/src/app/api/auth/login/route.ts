@@ -1,12 +1,33 @@
 import { NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
-import { APP_SESSION_COOKIE, createAppSessionCookie } from '@/lib/auth/session-cookie';
+import { APP_SESSION_COOKIE, type AppSessionRole, createAppSessionCookie } from '@/lib/auth/session-cookie';
 import { db } from '@/lib/db';
 import { apiError, apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
+import { homeForRole } from '@/lib/server/session';
 import { logAuthFailure, logInfo } from '@/lib/server/logging';
 import { LoginSchema } from '@/schemas';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Maps a DB UserRole enum value to the AppSessionRole stored in the HMAC cookie.
+ * ADMIN, PRINCIPAL, ACCOUNTANT all receive 'admin' — the admin portal handles
+ * fine-grained permission differences via RBAC.
+ */
+function dbRoleToSessionRole(dbRole: string): AppSessionRole {
+  switch (dbRole) {
+    case 'ADMIN':
+    case 'PRINCIPAL':
+    case 'ACCOUNTANT':
+      return 'admin';
+    case 'FACULTY':
+      return 'faculty';
+    case 'PARENT':
+      return 'parent';
+    default:
+      return 'faculty';
+  }
+}
 
 export async function POST(req: Request) {
   const requestId = generateRequestId();
@@ -27,7 +48,6 @@ export async function POST(req: Request) {
 
     const { email, password } = parsed.data;
 
-    // Fetch user by email (select password for comparison)
     const user = await db.user.findUnique({
       where: { email },
       select: {
@@ -37,6 +57,7 @@ export async function POST(req: Request) {
         role: true,
         schoolId: true,
         name: true,
+        isActive: true,
         faculty: { select: { id: true } },
       },
     });
@@ -46,12 +67,16 @@ export async function POST(req: Request) {
 
     if (!user || !passwordMatch) {
       logAuthFailure(email, 'Invalid credentials', { requestId });
-      // Generic error - do not reveal whether email exists
       return apiError('INVALID_CREDENTIALS', 'Invalid email or password', requestId, undefined, 401);
     }
 
-    const role = user.role === 'ADMIN' ? 'admin' : 'faculty';
-    const redirectTo = role === 'admin' ? '/admin' : '/faculty';
+    if (user.isActive === false) {
+      logAuthFailure(email, 'Account inactive', { requestId });
+      return apiError('ACCOUNT_INACTIVE', 'Your account has been deactivated', requestId, undefined, 403);
+    }
+
+    const role = dbRoleToSessionRole(user.role);
+    const redirectTo = homeForRole(role);
 
     const sessionCookie = await createAppSessionCookie({
       userId: user.id,
@@ -61,6 +86,12 @@ export async function POST(req: Request) {
       name: user.name,
       facultyId: user.faculty?.id ?? null,
     });
+
+    // Update lastLoginAt asynchronously — don't block the login response
+    db.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    }).catch((err) => console.error('Failed to update lastLoginAt:', err));
 
     logInfo('User logged in', {
       requestId,
@@ -80,7 +111,7 @@ export async function POST(req: Request) {
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/',
-      maxAge: 60 * 60 * 8, // 8 hours
+      maxAge: 60 * 60 * 8,
     });
 
     return response;

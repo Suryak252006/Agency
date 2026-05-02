@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { tenantDb } from '@/lib/db-tenant';
 import type { RequestStatus, RequestType } from '@/schemas';
 import type { SessionUser } from '@/lib/server/session';
 import { createAuditLog } from './marks';
@@ -15,17 +16,14 @@ export async function createRequest(
   reason: string,
   marksId?: string
 ) {
+  const tdb = tenantDb(user.schoolId);
+
   if (marksId) {
-    const marks = await db.marks.findFirst({
-      where: {
-        id: marksId,
-        schoolId: user.schoolId,
-      },
+    const marks = await tdb.marks.findFirst({
+      where: { id: marksId },
       include: {
         class: {
-          include: {
-            faculty: true,
-          },
+          include: { faculty: true },
         },
       },
     });
@@ -38,7 +36,6 @@ export async function createRequest(
       throw makeError('FORBIDDEN', 'You can only request changes for your assigned classes');
     }
 
-    // EDIT_MARKS requests can only be for locked marks
     if (type === 'EDIT_MARKS' && marks.status !== 'LOCKED') {
       throw makeError(
         'CONFLICT',
@@ -47,10 +44,10 @@ export async function createRequest(
     }
   }
 
-  const request = await db.request.create({
+  const request = await tdb.request.create({
     data: {
-      userId: user.id,
       schoolId: user.schoolId,
+      userId: user.id,
       type,
       reason,
       marksId,
@@ -74,18 +71,17 @@ export async function getRequests(
   limit: number = 20,
   offset: number = 0
 ) {
-  // Cap limit to prevent DDoS
+  const tdb = tenantDb(user.schoolId);
   const cappedLimit = Math.min(limit, 100);
-  
+
   const where = {
-    schoolId: user.schoolId,
     ...(user.role === 'faculty' ? { userId: user.id } : {}),
     ...(status ? { status } : {}),
     ...(type ? { type } : {}),
   };
 
   const [requests, total] = await Promise.all([
-    db.request.findMany({
+    tdb.request.findMany({
       where,
       select: {
         id: true,
@@ -99,7 +95,7 @@ export async function getRequests(
       take: cappedLimit,
       skip: offset,
     }),
-    db.request.count({ where }),
+    tdb.request.count({ where }),
   ]);
 
   return { requests, total, limit: cappedLimit, offset };
@@ -110,11 +106,10 @@ export async function approveRequest(
   user: SessionUser,
   response?: string
 ) {
-  const request = await db.request.findFirst({
-    where: {
-      id: requestId,
-      schoolId: user.schoolId,
-    },
+  const tdb = tenantDb(user.schoolId);
+
+  const request = await tdb.request.findFirst({
+    where: { id: requestId },
   });
 
   if (!request) {
@@ -125,13 +120,10 @@ export async function approveRequest(
     throw makeError('CONFLICT', `Request is already ${request.status}`);
   }
 
+  // update by id — ownership already verified via the findFirst above
   const updated = await db.request.update({
     where: { id: requestId },
-    data: {
-      status: 'APPROVED',
-      respondedBy: user.id,
-      response,
-    },
+    data: { status: 'APPROVED', respondedBy: user.id, response },
   });
 
   await createAuditLog(user.id, user.schoolId, 'REQUEST_APPROVED', 'request', requestId, {
@@ -147,11 +139,10 @@ export async function rejectRequest(
   user: SessionUser,
   response: string
 ) {
-  const request = await db.request.findFirst({
-    where: {
-      id: requestId,
-      schoolId: user.schoolId,
-    },
+  const tdb = tenantDb(user.schoolId);
+
+  const request = await tdb.request.findFirst({
+    where: { id: requestId },
   });
 
   if (!request) {
@@ -162,13 +153,10 @@ export async function rejectRequest(
     throw makeError('CONFLICT', `Request is already ${request.status}`);
   }
 
+  // update by id — ownership already verified via the findFirst above
   const updated = await db.request.update({
     where: { id: requestId },
-    data: {
-      status: 'REJECTED',
-      respondedBy: user.id,
-      response,
-    },
+    data: { status: 'REJECTED', respondedBy: user.id, response },
   });
 
   await createAuditLog(user.id, user.schoolId, 'REQUEST_REJECTED', 'request', requestId, {

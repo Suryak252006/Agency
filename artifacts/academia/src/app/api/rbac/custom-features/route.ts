@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { apiSuccess, generateRequestId, handleApiError } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
+import { tenantDb } from '@/lib/db-tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10)));
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const module = searchParams.get('module');
     const search = searchParams.get('search');
 
-    const where: Record<string, unknown> = { schoolId: user.schoolId };
+    const where: Record<string, unknown> = {};
     if (status !== null && status !== '') {
       where.status = status;
     }
@@ -44,9 +45,8 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Use _count instead of loading full assignments array (avoids N+1 join)
     const [features, total] = await Promise.all([
-      db.customFeature.findMany({
+      tdb.customFeature.findMany({
         where,
         select: {
           id: true,
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      db.customFeature.count({ where }),
+      tdb.customFeature.count({ where }),
     ]);
 
     const items = features.map(({ _count, ...f }) => ({
@@ -88,48 +88,32 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
   try {
     const user = await requireSessionUser({ roles: ['admin'] });
+    const tdb = tenantDb(user.schoolId);
 
-    // Permission check: custom_features.create
-    const canCreate = await db.roleAssignment.findFirst({
+    // Permission check: custom_features.create — scoped to this tenant via tdb
+    const canCreate = await tdb.roleAssignment.findFirst({
       where: {
         userId: user.id,
-        role: {
-          permissions: {
-            some: { permission: { key: 'custom_features.create' } },
-          },
-        },
+        role: { permissions: { some: { permission: { key: 'custom_features.create' } } } },
       },
     });
     if (!canCreate) {
-      const err = Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
-      throw err;
+      throw Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' });
     }
 
     const { name, key, module, description, type, scope, status } = await request.json();
 
-    const existing = await db.customFeature.findUnique({
-      where: { schoolId_key: { schoolId: user.schoolId, key } },
-    });
+    // Use findFirst — tenantDb injects schoolId so (schoolId, key) is effectively unique
+    const existing = await tdb.customFeature.findFirst({ where: { key } });
     if (existing) {
-      const err = Object.assign(new Error('Feature key already exists'), { code: 'CONFLICT' });
-      throw err;
+      throw Object.assign(new Error('Feature key already exists'), { code: 'CONFLICT' });
     }
 
-    const feature = await db.customFeature.create({
-      data: {
-        schoolId: user.schoolId,
-        name,
-        key,
-        module,
-        description,
-        type,
-        scope,
-        status,
-        createdBy: user.id,
-      },
+    const feature = await tdb.customFeature.create({
+      data: { schoolId: user.schoolId, name, key, module, description, type, scope, status, createdBy: user.id },
     });
 
-    await db.rBACLog.create({
+    await tdb.rBACLog.create({
       data: {
         schoolId: user.schoolId,
         actorId: user.id,

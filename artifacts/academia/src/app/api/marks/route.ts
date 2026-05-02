@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
 import {
   generateRequestId,
   apiSuccess,
@@ -8,6 +7,7 @@ import {
   handleApiError,
 } from '@/lib/server/api';
 import { requireSessionUser } from '@/lib/server/session';
+import { tenantDb } from '@/lib/db-tenant';
 import { SaveMarkSchema, GetMarksQuerySchema } from '@/schemas';
 import { assertClassAccess, saveMark } from '@/lib/server/marks';
 
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await requireSessionUser();
+    const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
 
     const query = GetMarksQuerySchema.parse({
@@ -51,14 +52,15 @@ export async function GET(request: NextRequest) {
     const page = query.page ?? 0;
     const limit = query.limit ?? 20;
 
+    const where = {
+      ...(query.examId ? { examId: query.examId } : {}),
+      ...(query.classId ? { classId: query.classId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+
     const [marks, total] = await Promise.all([
-      db.marks.findMany({
-        where: {
-          schoolId: user.schoolId,
-          ...(query.examId ? { examId: query.examId } : {}),
-          ...(query.classId ? { classId: query.classId } : {}),
-          ...(query.status ? { status: query.status } : {}),
-        },
+      tdb.marks.findMany({
+        where,
         select: {
           id: true,
           examId: true,
@@ -76,14 +78,7 @@ export async function GET(request: NextRequest) {
         skip: page * limit,
         take: limit,
       }),
-      db.marks.count({
-        where: {
-          schoolId: user.schoolId,
-          ...(query.examId ? { examId: query.examId } : {}),
-          ...(query.classId ? { classId: query.classId } : {}),
-          ...(query.status ? { status: query.status } : {}),
-        },
-      }),
+      tdb.marks.count({ where }),
     ]);
 
     return new Response(
