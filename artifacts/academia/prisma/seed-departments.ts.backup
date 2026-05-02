@@ -1,0 +1,322 @@
+/**
+ * Seed script for Department-Scoped RBAC
+ * Creates departments, multi-department faculty, and HOD assignments
+ *
+ * Usage: pnpm exec ts-node prisma/seed-departments.ts
+ * 
+ * This demonstrates:
+ * - Department creation with department-scoped HOD assignment
+ * - Faculty belonging to multiple departments
+ * - Department-scoped exams and classes
+ * - HOD-only access to faculty in their departments
+ */
+
+import { PrismaClient } from '@prisma/client';
+import { nanoid } from 'nanoid';
+
+const prisma = new PrismaClient();
+
+async function seedDepartments() {
+  console.log('📚 Starting Department-Scoped RBAC seed...\n');
+
+  try {
+    // Use a default schoolId (required by schema but School model doesn't exist)
+    const schoolId = 'school_default_001';
+    console.log(`✅ Using default schoolId: ${schoolId}\n`);
+
+    // ============================================================
+    // 1. CREATE DEPARTMENTS
+    // ============================================================
+    console.log('🏛️  Creating departments...');
+    
+    const departments = await Promise.all([
+      prisma.department.create({
+        data: {
+          schoolId,
+          name: 'Mathematics',
+          code: 'MATH',
+        },
+      }),
+      prisma.department.create({
+        data: {
+          schoolId,
+          name: 'Physics',
+          code: 'PHY',
+        },
+      }),
+      prisma.department.create({
+        data: {
+          schoolId,
+          name: 'Chemistry',
+          code: 'CHM',
+        },
+      }),
+      prisma.department.create({
+        data: {
+          schoolId,
+          name: 'English',
+          code: 'ENG',
+        },
+      }),
+      prisma.department.create({
+        data: {
+          schoolId,
+          name: 'Computer Science',
+          code: 'CS',
+        },
+      }),
+    ]);
+
+    console.log(`  ✓ Created ${departments.length} departments\n`);
+
+    // ============================================================
+    // 2. CREATE HODs (HEADS OF DEPARTMENT)
+    // ============================================================
+    console.log('👨‍💼 Creating HODs (Heads of Department)...');
+
+    const hods: Array<{ dept: string; user: string; userId: string }> = [];
+
+    for (let i = 0; i < departments.length; i++) {
+      const dept = departments[i];
+      const hodEmail = `hod-${dept.code.toLowerCase()}@school.in`;
+      
+      // Create HOD user
+      const hodUser = await prisma.user.create({
+        data: {
+          email: hodEmail,
+          password: 'hashed_password_123', // TODO: Hash properly in production
+          name: `${dept.name} Head`,
+          role: 'ADMIN', // HODs are typically admins
+          schoolId,
+        },
+      });
+
+      // Assign HOD role in specific department
+      const hodRole = await prisma.role.findFirst({
+        where: { schoolId, systemRole: 'HOD' },
+      });
+
+      if (hodRole) {
+        await prisma.roleAssignment.create({
+          data: {
+            userId: hodUser.id,
+            roleId: hodRole.id,
+            schoolId,
+            departmentId: dept.id, // DEPARTMENT-SCOPED assignment
+            assignedBy: 'system', // Will be updated to actual admin
+          },
+        });
+      }
+
+      // Set HOD as department head
+      await prisma.department.update({
+        where: { id: dept.id },
+        data: { headId: hodUser.id },
+      });
+
+      hods.push({ dept: dept.name, user: hodEmail, userId: hodUser.id });
+      console.log(`  ✓ Created HOD: ${hodEmail} for ${dept.name}`);
+    }
+
+    console.log();
+
+    // ============================================================
+    // 3. CREATE FACULTY WITH MULTI-DEPARTMENT ASSIGNMENTS
+    // ============================================================
+    console.log('👨‍🏫 Creating Faculty with multi-department assignments...');
+
+    // Faculty 1: Teaches in Math AND Physics (cross-departmental)
+    const faculty1User = await prisma.user.create({
+      data: {
+        email: 'faculty.math-physics@school.in',
+        password: 'hashed_password_123',
+        name: 'Dr. Sharma (Math-Physics)',
+        role: 'FACULTY',
+        schoolId,
+      },
+    });
+
+    const faculty1 = await prisma.faculty.create({
+      data: {
+        userId: faculty1User.id,
+        schoolId,
+        departments: {
+          create: [
+            { departmentId: departments[0].id, primary: true }, // Primary: Math
+            { departmentId: departments[1].id, primary: false }, // Secondary: Physics
+          ],
+        },
+      },
+    });
+
+    // Assign FACULTY role in both departments
+    const facultyRole = await prisma.role.findFirst({
+      where: { schoolId, systemRole: 'FACULTY' },
+    });
+
+    if (facultyRole) {
+      await prisma.roleAssignment.create({
+        data: {
+          userId: faculty1User.id,
+          roleId: facultyRole.id,
+          schoolId,
+          departmentId: departments[0].id, // Math
+          assignedBy: 'system',
+        },
+      });
+
+      await prisma.roleAssignment.create({
+        data: {
+          userId: faculty1User.id,
+          roleId: facultyRole.id,
+          schoolId,
+          departmentId: departments[1].id, // Physics
+          assignedBy: 'system',
+        },
+      });
+    }
+
+    console.log(`  ✓ Created Faculty 1: faculty.math-physics@school.in (Math + Physics)`);
+
+    // Faculty 2: English department only
+    const faculty2User = await prisma.user.create({
+      data: {
+        email: 'faculty.english@school.in',
+        password: 'hashed_password_123',
+        name: 'Prof. Gupta (English)',
+        role: 'FACULTY',
+        schoolId,
+      },
+    });
+
+    const faculty2 = await prisma.faculty.create({
+      data: {
+        userId: faculty2User.id,
+        schoolId,
+        departments: {
+          create: [{ departmentId: departments[3].id, primary: true }],
+        },
+      },
+    });
+
+    if (facultyRole) {
+      await prisma.roleAssignment.create({
+        data: {
+          userId: faculty2User.id,
+          roleId: facultyRole.id,
+          schoolId,
+          departmentId: departments[3].id, // English
+          assignedBy: 'system',
+        },
+      });
+    }
+
+    console.log(`  ✓ Created Faculty 2: faculty.english@school.in (English only)`);
+
+    // Faculty 3: CS department only
+    const faculty3User = await prisma.user.create({
+      data: {
+        email: 'faculty.cs@school.in',
+        password: 'hashed_password_123',
+        name: 'Ms. Verma (Computer Science)',
+        role: 'FACULTY',
+        schoolId,
+      },
+    });
+
+    const faculty3 = await prisma.faculty.create({
+      data: {
+        userId: faculty3User.id,
+        schoolId,
+        departments: {
+          create: [{ departmentId: departments[4].id, primary: true }],
+        },
+      },
+    });
+
+    if (facultyRole) {
+      await prisma.roleAssignment.create({
+        data: {
+          userId: faculty3User.id,
+          roleId: facultyRole.id,
+          schoolId,
+          departmentId: departments[4].id, // CS
+          assignedBy: 'system',
+        },
+      });
+    }
+
+    console.log(`  ✓ Created Faculty 3: faculty.cs@school.in (Computer Science only)\n`);
+
+    // ============================================================
+    // 4. CREATE DEPARTMENT-SCOPED EXAMS
+    // ============================================================
+    console.log('📋 Creating department-scoped exams...');
+
+    // Math department exam
+    const mathExam = await prisma.exam.create({
+      data: {
+        schoolId,
+        departmentId: departments[0].id, // DEPARTMENT-SCOPED
+        name: 'Algebra Final Exam',
+        maxMarks: 100,
+        startDate: new Date('2024-05-01'),
+      },
+    });
+
+    // Physics department exam
+    const physicsExam = await prisma.exam.create({
+      data: {
+        schoolId,
+        departmentId: departments[1].id, // DEPARTMENT-SCOPED
+        name: 'Mechanics Midterm',
+        maxMarks: 75,
+        startDate: new Date('2024-04-15'),
+      },
+    });
+
+    console.log(`  ✓ Created exams scoped to departments\n`);
+
+    // ============================================================
+    // 5. ACCESS CONTROL DEMONSTRATION
+    // ============================================================
+    console.log('🔒 Access Control Rules Demonstration:\n');
+    console.log('1. HOD of Math can:');
+    console.log('   - View and manage Math faculty');
+    console.log('   - View and manage Math exams');
+    console.log('   - BUT cannot access Physics exams/faculty\n');
+
+    console.log('2. Faculty in Math+Physics can:');
+    console.log('   - Submit marks for Math exams (primary dept)');
+    console.log('   - Submit marks for Physics exams (secondary dept)');
+    console.log('   - Cannot access English or CS exams\n');
+
+    console.log('3. HOD overlap rule:');
+    console.log('   - HOD-A can manage Faculty-B ONLY if they share a department\n');
+
+    // ============================================================
+    // 6. BACKEND VALIDATION ENFORCEMENT
+    // ============================================================
+    console.log('✅ Backend Validation Must Enforce:\n');
+    console.log('Every API endpoint must validate:');
+    console.log('  1. userHasPermissionWithDepartment(user, permission, departmentId)');
+    console.log('  2. canAccessDepartment(user, departmentId, userDepartments)');
+    console.log('  3. canManageFacultyInDepartment(actor, targetDepts, actorDepts)');
+    console.log('  → Do NOT rely only on sidebar hiding\n');
+
+    console.log('✅ Seed Complete!');
+    console.log('\nLogins:');
+    console.log(`  Admin: admin@school.in`);
+    console.log(`  HOD (Math): ${hods[0]?.user}`);
+    console.log(`  Faculty (Multi-Dept): faculty.math-physics@school.in`);
+    console.log(`  Faculty (Single-Dept): faculty.english@school.in\n`);
+
+  } catch (error) {
+    console.error('❌ Seed failed:', error);
+    throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+seedDepartments();
