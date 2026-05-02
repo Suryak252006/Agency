@@ -6,3 +6,9 @@ id = "IGuVSpM6n21byb2-rbYhy"
 uri = "file://artifacts/academia/GO_LIVE_CHECKLIST.md"
 type = "text"
 title = "Academia — Go-Live Checklist"
+
+[[outputs]]
+id = "zaIr7aba4J2GefM1y3X-P"
+uri = "file://artifacts/academia/ERP_IMPLEMENTATION_SPEC.md"
+type = "text"
+title = "School ERP — Implementation Specification"
