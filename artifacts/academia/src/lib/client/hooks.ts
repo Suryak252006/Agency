@@ -66,18 +66,21 @@ export const queryKeys = {
 
 /**
  * Hooks for Marks
+ *
+ * Workflow: SUBMITTED → LOCKED → ACCEPTED
+ *  - Faculty saves marks  → status: SUBMITTED (editable)
+ *  - Faculty locks marks  → status: LOCKED    (read-only, pending acceptance)
+ *  - Admin/HOD accepts   → status: ACCEPTED   (final)
  */
+
 export function useMarks(examId: string, classId?: string) {
   const query = new URLSearchParams({ examId });
-
-  if (classId) {
-    query.set('classId', classId);
-  }
+  if (classId) query.set('classId', classId);
 
   return useQuery({
     queryKey: queryKeys.marks.list(examId, classId),
     queryFn: () => apiClient.get<any>(`/api/marks?${query.toString()}`),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
     retry: 2,
     enabled: Boolean(examId),
   });
@@ -92,7 +95,8 @@ export function useMarksHistory(marksId: string) {
   });
 }
 
-export function useSaveDraftMark() {
+/** Faculty: save a mark for a student (SUBMITTED status, editable until locked) */
+export function useSaveMark() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -103,7 +107,6 @@ export function useSaveDraftMark() {
       value: string;
     }) => apiClient.post<any>('/api/marks', data),
     onSuccess: (_data: any, variables: { examId: string; classId: string; studentId: string; value: string }) => {
-      // Invalidate marks list to refetch
       queryClient.invalidateQueries({
         queryKey: queryKeys.marks.list(variables.examId, variables.classId),
       });
@@ -115,50 +118,37 @@ export function useSaveDraftMark() {
   });
 }
 
-export function useSubmitMarks() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: { examId: string; classId: string }) =>
-      apiClient.post<any>('/api/marks/submit', data),
-    onSuccess: () => {
-      toast.success('Marks submitted successfully');
-      queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to submit marks');
-    },
-  });
-}
-
-export function useApproveMarks() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: { marksIds: string[] }) => apiClient.post<any>('/api/marks/approve', data),
-    onSuccess: () => {
-      toast.success('Marks approved successfully');
-      queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to approve marks');
-    },
-  });
-}
-
+/** Faculty: lock all submitted marks for an exam+class (SUBMITTED → LOCKED) */
 export function useLockMarks() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { marksIds: string[] }) => apiClient.post<any>('/api/marks/lock', data),
+    mutationFn: async (data: { examId: string; classId: string }) =>
+      apiClient.post<any>('/api/marks/lock', data),
     onSuccess: () => {
-      toast.success('Marks locked successfully');
+      toast.success('Marks locked — waiting for Admin/HOD acceptance');
+      queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to lock marks');
+    },
+  });
+}
+
+/** Admin/HOD: accept locked marks by IDs (LOCKED → ACCEPTED) */
+export function useAcceptMarks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { marksIds: string[] }) =>
+      apiClient.post<any>('/api/marks/accept', data),
+    onSuccess: () => {
+      toast.success('Marks accepted');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to lock marks');
+      toast.error(error.message || 'Failed to accept marks');
     },
   });
 }
@@ -168,15 +158,8 @@ export function useLockMarks() {
  */
 export function useRequests(status?: string, type?: string, page = 0, limit = 20) {
   const query = new URLSearchParams();
-
-  if (status) {
-    query.set('status', status);
-  }
-
-  if (type) {
-    query.set('type', type);
-  }
-
+  if (status) query.set('status', status);
+  if (type) query.set('type', type);
   query.set('page', String(page));
   query.set('limit', String(limit));
 
@@ -246,15 +229,8 @@ export function useClasses(options?: { classId?: string; includeStudents?: boole
   const page = options?.page ?? 0;
   const limit = options?.limit ?? 20;
   const query = new URLSearchParams();
-
-  if (options?.classId) {
-    query.set('classId', options.classId);
-  }
-
-  if (options?.includeStudents) {
-    query.set('includeStudents', 'true');
-  }
-
+  if (options?.classId) query.set('classId', options.classId);
+  if (options?.includeStudents) query.set('includeStudents', 'true');
   query.set('page', String(page));
   query.set('limit', String(limit));
 
@@ -276,11 +252,7 @@ export function useClassDetails(classId: string) {
 
 export function useStudents(classId?: string, page = 0, limit = 100) {
   const query = new URLSearchParams();
-
-  if (classId) {
-    query.set('classId', classId);
-  }
-
+  if (classId) query.set('classId', classId);
   query.set('page', String(page));
   query.set('limit', String(limit));
 
@@ -293,11 +265,7 @@ export function useStudents(classId?: string, page = 0, limit = 100) {
 
 export function useExams(classId?: string, page = 0, limit = 20) {
   const query = new URLSearchParams();
-
-  if (classId) {
-    query.set('classId', classId);
-  }
-
+  if (classId) query.set('classId', classId);
   query.set('page', String(page));
   query.set('limit', String(limit));
 
@@ -313,17 +281,13 @@ export function useExams(classId?: string, page = 0, limit = 20) {
  */
 export function useLogs(action?: string, days: number = 30, page: number = 0) {
   const query = new URLSearchParams();
-
-  if (action) {
-    query.set('action', action);
-  }
-
+  if (action) query.set('action', action);
   query.set('days', String(days));
   query.set('page', String(page));
 
   return useQuery({
     queryKey: queryKeys.logs.list(action, days, page),
     queryFn: () => apiClient.get<any>(`/api/logs?${query.toString()}`),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }

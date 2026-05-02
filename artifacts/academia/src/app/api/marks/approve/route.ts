@@ -1,4 +1,5 @@
-import { handleApproveMarks } from '@/modules/academic/marks/http';
+import { handleAcceptMarks } from '@/modules/academic/marks/http';
 
+// Legacy alias — forwards to accept handler
 export const dynamic = 'force-dynamic';
-export const POST = handleApproveMarks;
+export const POST = handleAcceptMarks;

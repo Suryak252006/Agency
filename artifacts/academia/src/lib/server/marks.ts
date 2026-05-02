@@ -79,7 +79,11 @@ export async function createAuditLog(
   });
 }
 
-export async function saveDraftMark(
+/**
+ * Save a mark for a student — creates/updates in SUBMITTED status.
+ * Blocked if mark is already LOCKED or ACCEPTED.
+ */
+export async function saveMark(
   examId: string,
   classId: string,
   studentId: string,
@@ -88,7 +92,6 @@ export async function saveDraftMark(
 ) {
   await assertExamAccess(user, examId, classId);
 
-  // Fetch exam to validate against maxMarks
   const exam = await db.exam.findUnique({
     where: { id: examId },
     select: { maxMarks: true, schoolId: true },
@@ -102,7 +105,6 @@ export async function saveDraftMark(
     throw makeError('FORBIDDEN', 'Exam access denied');
   }
 
-  // Validate mark value against exam max
   if (value !== 'AB' && value !== 'NA') {
     const numValue = parseInt(value, 10);
     if (numValue > exam.maxMarks) {
@@ -112,10 +114,7 @@ export async function saveDraftMark(
 
   const enrollment = await db.classStudent.findUnique({
     where: {
-      classId_studentId: {
-        classId,
-        studentId,
-      },
+      classId_studentId: { classId, studentId },
     },
   });
 
@@ -124,30 +123,19 @@ export async function saveDraftMark(
   }
 
   const existing = await db.marks.findUnique({
-    where: {
-      examId_studentId: {
-        examId,
-        studentId,
-      },
-    },
+    where: { examId_studentId: { examId, studentId } },
   });
 
   if (existing?.schoolId && existing.schoolId !== user.schoolId) {
     throw makeError('FORBIDDEN', 'Cross-school marks access denied');
   }
 
-  // Prevent editing if already submitted or beyond
-  if (existing?.status && existing.status !== 'DRAFT') {
-    throw makeError('CONFLICT', `Cannot edit marks in ${existing.status} status. Submit edit request instead.`);
+  if (existing?.status && (existing.status === 'LOCKED' || existing.status === 'ACCEPTED')) {
+    throw makeError('CONFLICT', `Cannot edit marks in ${existing.status} status. Submit an edit request instead.`);
   }
 
   const saved = await db.marks.upsert({
-    where: {
-      examId_studentId: {
-        examId,
-        studentId,
-      },
-    },
+    where: { examId_studentId: { examId, studentId } },
     update: {
       value,
       classId,
@@ -159,11 +147,11 @@ export async function saveDraftMark(
       studentId,
       schoolId: user.schoolId,
       value,
-      status: 'DRAFT',
+      status: 'SUBMITTED',
     },
   });
 
-  await createAuditLog(user.id, user.schoolId, 'MARKS_DRAFT_SAVED', 'marks', saved.id, {
+  await createAuditLog(user.id, user.schoolId, 'MARKS_SAVED', 'marks', saved.id, {
     examId,
     classId,
     studentId,
@@ -173,7 +161,11 @@ export async function saveDraftMark(
   return saved;
 }
 
-export async function submitMarks(examId: string, classId: string, user: SessionUser) {
+/**
+ * Faculty locks marks for an exam+class — SUBMITTED → LOCKED.
+ * Once locked, marks are read-only until Admin/HOD accepts them.
+ */
+export async function lockMarks(examId: string, classId: string, user: SessionUser) {
   await assertExamAccess(user, examId, classId);
 
   const result = await db.marks.updateMany({
@@ -181,77 +173,7 @@ export async function submitMarks(examId: string, classId: string, user: Session
       schoolId: user.schoolId,
       examId,
       classId,
-      status: 'DRAFT',
-    },
-    data: {
       status: 'SUBMITTED',
-      submittedAt: new Date(),
-    },
-  });
-
-  await createAuditLog(user.id, user.schoolId, 'MARKS_SUBMITTED', 'marks_batch', examId, {
-    classId,
-    count: result.count,
-  });
-
-  return result;
-}
-
-export async function approveMarks(marksIds: string[], user: SessionUser) {
-  // Verify all marks belong to this school before updating
-  const marksToApprove = await db.marks.findMany({
-    where: {
-      id: { in: marksIds },
-      schoolId: user.schoolId,
-      status: 'SUBMITTED',
-    },
-    select: { id: true },
-  });
-
-  if (marksToApprove.length !== marksIds.length) {
-    throw makeError('FORBIDDEN', 'Some marks not found or not in SUBMITTED status');
-  }
-
-  const result = await db.marks.updateMany({
-    where: {
-      schoolId: user.schoolId,
-      id: { in: marksIds },
-      status: 'SUBMITTED',
-    },
-    data: {
-      status: 'APPROVED',
-      approvedAt: new Date(),
-    },
-  });
-
-  await createAuditLog(user.id, user.schoolId, 'MARKS_APPROVED', 'marks_batch', marksIds[0], {
-    count: result.count,
-    marksIds,
-  });
-
-  return result;
-}
-
-export async function lockMarks(marksIds: string[], user: SessionUser) {
-  // Verify all marks belong to this school and are in APPROVED status
-  const marksToLock = await db.marks.findMany({
-    where: {
-      id: { in: marksIds },
-      schoolId: user.schoolId,
-      status: 'APPROVED',
-    },
-    select: { id: true },
-  });
-
-  if (marksToLock.length !== marksIds.length) {
-    throw makeError('FORBIDDEN', 'Some marks not found or not in APPROVED status');
-  }
-
-  const result = await db.marks.updateMany({
-    where: {
-      schoolId: user.schoolId,
-      id: { in: marksIds },
-      status: 'APPROVED',
     },
     data: {
       status: 'LOCKED',
@@ -259,7 +181,50 @@ export async function lockMarks(marksIds: string[], user: SessionUser) {
     },
   });
 
-  await createAuditLog(user.id, user.schoolId, 'MARKS_LOCKED', 'marks_batch', marksIds[0], {
+  if (result.count === 0) {
+    throw makeError('CONFLICT', 'No submitted marks found to lock for this exam and class');
+  }
+
+  await createAuditLog(user.id, user.schoolId, 'MARKS_LOCKED', 'marks_batch', examId, {
+    classId,
+    count: result.count,
+  });
+
+  return result;
+}
+
+/**
+ * Admin or HOD accepts locked marks — LOCKED → ACCEPTED.
+ * Accepts by marksIds list.
+ */
+export async function acceptMarks(marksIds: string[], user: SessionUser) {
+  const marksToAccept = await db.marks.findMany({
+    where: {
+      id: { in: marksIds },
+      schoolId: user.schoolId,
+      status: 'LOCKED',
+    },
+    select: { id: true },
+  });
+
+  if (marksToAccept.length !== marksIds.length) {
+    throw makeError('FORBIDDEN', 'Some marks not found or not in LOCKED status');
+  }
+
+  const result = await db.marks.updateMany({
+    where: {
+      schoolId: user.schoolId,
+      id: { in: marksIds },
+      status: 'LOCKED',
+    },
+    data: {
+      status: 'ACCEPTED',
+      acceptedAt: new Date(),
+      acceptedBy: user.id,
+    },
+  });
+
+  await createAuditLog(user.id, user.schoolId, 'MARKS_ACCEPTED', 'marks_batch', marksIds[0], {
     count: result.count,
     marksIds,
   });

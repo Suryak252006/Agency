@@ -1,4 +1,5 @@
-import { handleSubmitMarks } from '@/modules/academic/marks/http';
+import { handleLockMarks } from '@/modules/academic/marks/http';
 
+// Legacy alias — forwards to lock handler
 export const dynamic = 'force-dynamic';
-export const POST = handleSubmitMarks;
+export const POST = handleLockMarks;

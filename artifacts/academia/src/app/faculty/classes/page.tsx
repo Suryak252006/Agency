@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useClassDetails, useClasses, useExams, useMarks, useSaveDraftMark, useSubmitMarks } from '@/lib/client/hooks';
+import { useClassDetails, useClasses, useExams, useMarks, useSaveMark, useLockMarks } from '@/lib/client/hooks';
 
 export default function FacultyClassesPage() {
   const classes = useClasses();
@@ -17,8 +17,8 @@ export default function FacultyClassesPage() {
   const classDetails = useClassDetails(selectedClassId || '');
   const exams = useExams(selectedClassId || undefined);
   const marks = useMarks(selectedExamId || '', selectedClassId || undefined);
-  const saveDraftMark = useSaveDraftMark();
-  const submitMarks = useSubmitMarks();
+  const saveMark = useSaveMark();
+  const lockMarks = useLockMarks();
 
   useEffect(() => {
     if (!selectedClassId && classItems[0]?.id) {
@@ -53,7 +53,6 @@ export default function FacultyClassesPage() {
       setValues({});
       return;
     }
-
     setValues((current) => {
       const next = { ...current };
       students.forEach((student: any) => {
@@ -63,7 +62,7 @@ export default function FacultyClassesPage() {
     });
   }, [marksByStudent, students]);
 
-  const handleSaveDrafts = async () => {
+  const handleSaveMarks = async () => {
     if (!selectedClassId || !selectedExamId) {
       toast.error('Select a class and exam first');
       return;
@@ -76,12 +75,12 @@ export default function FacultyClassesPage() {
     });
 
     if (!changedEntries.length) {
-      toast.message('No new draft changes to save');
+      toast.message('No changes to save');
       return;
     }
 
     for (const student of changedEntries) {
-      await saveDraftMark.mutateAsync({
+      await saveMark.mutateAsync({
         examId: selectedExamId,
         classId: selectedClassId,
         studentId: student.id,
@@ -89,26 +88,31 @@ export default function FacultyClassesPage() {
       });
     }
 
-    toast.success('Draft marks saved');
+    toast.success('Marks saved');
   };
 
-  const handleSubmitMarks = async () => {
+  const handleLockMarks = async () => {
     if (!selectedClassId || !selectedExamId) {
       toast.error('Select a class and exam first');
       return;
     }
-
-    await submitMarks.mutateAsync({
-      examId: selectedExamId,
-      classId: selectedClassId,
-    });
+    const submittedCount = marksItems.filter((m: any) => m.status === 'SUBMITTED').length;
+    if (submittedCount === 0) {
+      toast.error('No submitted marks to lock for this exam');
+      return;
+    }
+    await lockMarks.mutateAsync({ examId: selectedExamId, classId: selectedClassId });
   };
+
+  const hasSubmitted = marksItems.some((m: any) => m.status === 'SUBMITTED');
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Marks workflow</h1>
-        <p className="mt-2 text-sm text-slate-600">Save drafts for assigned classes, then submit them for admin review.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Marks entry</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Enter marks for your class, then lock them to send for Admin/HOD acceptance.
+        </p>
       </div>
 
       <Card>
@@ -147,18 +151,35 @@ export default function FacultyClassesPage() {
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" onClick={handleSaveDrafts} disabled={saveDraftMark.isPending || !students.length}>
-          Save draft
+        <Button
+          type="button"
+          onClick={handleSaveMarks}
+          disabled={saveMark.isPending || !students.length}
+        >
+          Save marks
         </Button>
-        <Button type="button" variant="outline" onClick={handleSubmitMarks} disabled={submitMarks.isPending || !marksItems.length}>
-          Submit for review
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleLockMarks}
+          disabled={lockMarks.isPending || !hasSubmitted}
+          title="Lock all submitted marks — sends them to Admin/HOD for acceptance"
+        >
+          Lock &amp; submit for acceptance
         </Button>
       </div>
 
       <div className="grid gap-4">
         {students.map((student: any) => {
-          const rowState = marksByStudent[student.id]?.status ?? 'DRAFT';
-          const readOnly = rowState === 'SUBMITTED' || rowState === 'APPROVED' || rowState === 'LOCKED';
+          const rowState = marksByStudent[student.id]?.status ?? 'SUBMITTED';
+          const readOnly = rowState === 'LOCKED' || rowState === 'ACCEPTED';
+
+          const badgeColor =
+            rowState === 'ACCEPTED'
+              ? 'bg-green-100 text-green-700'
+              : rowState === 'LOCKED'
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-slate-100 text-slate-700';
 
           return (
             <Card key={student.id}>
@@ -167,7 +188,9 @@ export default function FacultyClassesPage() {
                   <CardTitle className="text-base">{student.name}</CardTitle>
                   <CardDescription>Roll No: {student.rollNo}</CardDescription>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{rowState}</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${badgeColor}`}>
+                  {rowState}
+                </span>
               </CardHeader>
               <CardContent>
                 <Input

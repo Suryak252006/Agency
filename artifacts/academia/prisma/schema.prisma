@@ -105,10 +105,9 @@ enum FeatureStatus {
 }
 
 enum MarksStatus {
-  DRAFT
   SUBMITTED
-  APPROVED
   LOCKED
+  ACCEPTED
 }
 
 enum RequestStatus {
@@ -154,7 +153,7 @@ model User {
   assignedFeatures CustomFeatureAssignment[] @relation("AssignedByFeature")
   acceptedFeatures CustomFeatureAssignment[] @relation("AcceptedFeatures")
   departmentsHead    Department[]  // Departments where this user is HOD
-  marksApproved      Marks[]       // Marks approved by this user
+  marksAccepted      Marks[]       // Marks accepted by this user (Admin or HOD)
 
   @@index([email])
   @@index([schoolId, role])
@@ -442,11 +441,10 @@ model Marks {
   classId     String
   studentId   String
   value       String      // "75" | "AB" | "NA"
-  status      MarksStatus @default(DRAFT)
-  submittedAt DateTime?
-  approvedAt  DateTime?
+  status      MarksStatus @default(SUBMITTED)
   lockedAt    DateTime?
-  approvedBy  String?     // User ID of approver
+  acceptedAt  DateTime?
+  acceptedBy  String?     // User ID of acceptor (Admin or HOD)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -454,13 +452,13 @@ model Marks {
   exam       Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
   class      Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
   student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  approver   User?        @relation(fields: [approvedBy], references: [id], onDelete: SetNull)
+  acceptor   User?        @relation(fields: [acceptedBy], references: [id], onDelete: SetNull)
   history    MarksHistory[]
   
   @@unique([examId, studentId])
   @@index([schoolId, examId, classId, status])
   @@index([classId, examId, status])
-  @@index([approvedBy])
+  @@index([acceptedBy])
 }
 
 model MarksHistory {

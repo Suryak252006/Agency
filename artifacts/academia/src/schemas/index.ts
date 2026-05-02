@@ -9,12 +9,16 @@ export const UrlSchema = z.string().url();
 
 /**
  * Marks Validation
+ *
+ * Workflow: SUBMITTED → LOCKED → ACCEPTED
+ *  - SUBMITTED: Faculty enters/edits marks (default state)
+ *  - LOCKED:    Faculty locks marks (read-only, pending Admin/HOD acceptance)
+ *  - ACCEPTED:  Admin or HOD accepts the locked marks (final)
  */
 export const MarksStatusSchema = z.enum([
-  "DRAFT",
   "SUBMITTED",
-  "APPROVED",
   "LOCKED",
+  "ACCEPTED",
 ]);
 
 export const MarkValueSchema = z
@@ -28,30 +32,27 @@ export const MarkValueSchema = z
     { message: "Mark must be 0-100, AB, or NA" }
   );
 
-export const SaveMarksDraftSchema = z.object({
+export const SaveMarkSchema = z.object({
   examId: CuidSchema,
   classId: CuidSchema,
   studentId: CuidSchema,
   value: MarkValueSchema,
 });
 
-export const SubmitMarksSchema = z.object({
+/** Faculty locks all SUBMITTED marks for an exam+class */
+export const LockMarksSchema = z.object({
   examId: CuidSchema,
   classId: CuidSchema,
-  reason: z.string().optional(),
 });
 
-export const ApproveMarksSchema = z.object({
-  marksIds: z.array(CuidSchema).min(1),
-});
-
-export const LockMarksSchema = z.object({
+/** Admin/HOD accepts specific LOCKED marks by ID */
+export const AcceptMarksSchema = z.object({
   marksIds: z.array(CuidSchema).min(1),
 });
 
 export const BatchMarksStatusSchema = z.object({
   marksIds: z.array(CuidSchema).min(1),
-  status: z.enum(["APPROVED", "LOCKED"]),
+  status: z.literal("ACCEPTED"),
 });
 
 /**
@@ -171,7 +172,7 @@ export const CreateExamSchema = z.object({
   maxMarks: z.number().int().positive(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime().optional(),
-  classId: CuidSchema.optional(), // NULL = school-wide
+  classId: CuidSchema.optional(),
 });
 
 export const UpdateExamSchema = CreateExamSchema.partial();
@@ -235,8 +236,9 @@ export const ApiSuccessSchema = z.object({
  */
 export type MarksStatus = z.infer<typeof MarksStatusSchema>;
 export type MarkValue = z.infer<typeof MarkValueSchema>;
-export type SaveMarksDraft = z.infer<typeof SaveMarksDraftSchema>;
-export type SubmitMarks = z.infer<typeof SubmitMarksSchema>;
+export type SaveMark = z.infer<typeof SaveMarkSchema>;
+export type LockMarks = z.infer<typeof LockMarksSchema>;
+export type AcceptMarks = z.infer<typeof AcceptMarksSchema>;
 export type RequestType = z.infer<typeof RequestTypeSchema>;
 export type RequestStatus = z.infer<typeof RequestStatusSchema>;
 export type CreateRequest = z.infer<typeof CreateRequestSchema>;

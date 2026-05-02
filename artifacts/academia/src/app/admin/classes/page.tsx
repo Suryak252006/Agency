@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useApproveMarks, useClasses, useExams, useLockMarks, useMarks } from '@/lib/client/hooks';
+import { useAcceptMarks, useClasses, useExams, useMarks } from '@/lib/client/hooks';
 
 export default function AdminClassesPage() {
   const classes = useClasses();
@@ -13,8 +13,7 @@ export default function AdminClassesPage() {
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const exams = useExams(selectedClassId || undefined);
   const marks = useMarks(selectedExamId || '', selectedClassId || undefined);
-  const approveMarks = useApproveMarks();
-  const lockMarks = useLockMarks();
+  const acceptMarks = useAcceptMarks();
 
   useEffect(() => {
     if (!selectedClassId && items[0]?.id) {
@@ -32,26 +31,31 @@ export default function AdminClassesPage() {
   }, [exams.data]);
 
   const marksItems = selectedClassId && selectedExamId ? marks.data?.data?.marks ?? [] : [];
-  const submittedIds = useMemo(
-    () => marksItems.filter((item: any) => item.status === 'SUBMITTED').map((item: any) => item.id),
+
+  const lockedIds = useMemo(
+    () => marksItems.filter((item: any) => item.status === 'LOCKED').map((item: any) => item.id),
     [marksItems]
   );
-  const approvedIds = useMemo(
-    () => marksItems.filter((item: any) => item.status === 'APPROVED').map((item: any) => item.id),
-    [marksItems]
-  );
+
+  const statusBadgeClass = (status: string) => {
+    if (status === 'ACCEPTED') return 'bg-green-100 text-green-700';
+    if (status === 'LOCKED') return 'bg-amber-100 text-amber-700';
+    return 'bg-slate-100 text-slate-700';
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Classes</h1>
-        <p className="mt-2 text-sm text-slate-600">Review submitted marks and complete admin approvals.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Review marks</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Accept locked marks submitted by faculty for this class and exam.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Select review context</CardTitle>
-          <CardDescription>Choose a class and exam to inspect submitted marks.</CardDescription>
+          <CardDescription>Choose a class and exam to inspect locked marks.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <select
@@ -86,18 +90,10 @@ export default function AdminClassesPage() {
       <div className="flex flex-wrap gap-3">
         <Button
           type="button"
-          onClick={() => approveMarks.mutate({ marksIds: submittedIds })}
-          disabled={!submittedIds.length || approveMarks.isPending}
+          onClick={() => acceptMarks.mutate({ marksIds: lockedIds })}
+          disabled={!lockedIds.length || acceptMarks.isPending}
         >
-          Approve submitted ({submittedIds.length})
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => lockMarks.mutate({ marksIds: approvedIds })}
-          disabled={!approvedIds.length || lockMarks.isPending}
-        >
-          Lock approved ({approvedIds.length})
+          Accept locked marks ({lockedIds.length})
         </Button>
       </div>
 
@@ -109,9 +105,11 @@ export default function AdminClassesPage() {
                 <CardTitle className="text-base">{item.student.name}</CardTitle>
                 <CardDescription>Roll No: {item.student.rollNo}</CardDescription>
               </div>
-              <Badge variant="secondary">{item.status}</Badge>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(item.status)}`}>
+                {item.status}
+              </span>
             </CardHeader>
-            <CardContent className="text-sm text-slate-600">Value: {item.value}</CardContent>
+            <CardContent className="text-sm text-slate-600">Mark: {item.value}</CardContent>
           </Card>
         ))}
       </div>
