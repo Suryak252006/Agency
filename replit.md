@@ -1,27 +1,47 @@
-# Workspace
+# Academia — School Academic Management System
 
 ## Overview
+A Next.js 15 school academic management platform using Supabase for auth/database and Prisma as ORM. Features role-based access control (RBAC) for administrators and faculty, with dashboards, marks management, class scheduling, and exam tracking.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+## Tech Stack
+- **Framework**: Next.js 15 (App Router) — kept as-is from original Vercel project
+- **Auth & DB**: Supabase (auth + PostgreSQL)
+- **ORM**: Prisma
+- **Styling**: Tailwind CSS v4
+- **UI Components**: Radix UI + shadcn/ui, MUI
+- **State**: TanStack React Query
+- **Runtime**: Node.js
 
-## Stack
+## Project Structure
+```
+artifacts/academia/       # Main Next.js app
+  src/
+    app/                  # Next.js App Router pages
+      admin/              # Admin dashboard
+      faculty/            # Faculty portal
+      auth/               # Auth pages
+      api/                # API routes (Next.js route handlers)
+    components/           # Shared UI components
+    lib/
+      supabase/           # Supabase client config
+      server/             # Server-side utilities (session, etc.)
+  prisma/                 # Prisma schema & migrations
+artifacts/api-server/     # Shared Express API server (scaffold, minimal use)
+```
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+## Environment Variables Required
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon/publishable key
+- `AUTH_SECRET` — Session signing secret
 
-## Key Commands
+## Running the App
+The app runs via the `artifacts/academia: web` workflow using:
+```
+pnpm --filter @workspace/academia run dev
+```
+Next.js listens on `$PORT` (18373) bound to `0.0.0.0`.
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
-
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Notes
+- Original Next.js stack preserved — no migration to Vite/React
+- `NEXT_PUBLIC_*` env vars are Supabase credentials, not database URLs
+- Prisma client is generated from `artifacts/academia/prisma/schema.prisma`
