@@ -7,10 +7,14 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30000,
     hookTimeout: 30000,
-    // Run all test files sequentially — required for shared DB state
+    // e2e tests share DB state and must run sequentially
+    // unit tests have no DB and could run in parallel, but keeping one config simple
     fileParallelism: false,
     reporters: ['verbose'],
-    include: ['tests/e2e/**/*.test.ts'],
+    include: [
+      'tests/e2e/**/*.test.ts',
+      'tests/unit/**/*.test.ts',
+    ],
   },
   resolve: {
     alias: {

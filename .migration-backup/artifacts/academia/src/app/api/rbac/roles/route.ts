@@ -104,8 +104,11 @@ export async function POST(request: NextRequest) {
 
     let finalPermissionIds: string[] = permissionIds || [];
     if (cloneFromRoleId) {
-      // Source role lookup is by id only — use db directly (findUnique)
-      const source = await db.role.findUnique({
+      // FIX (Sprint 1 R1): Use tdb.role.findFirst so schoolId is injected automatically.
+      // This prevents an admin from cloning permission lists from a foreign school's role
+      // by supplying a known role ID. If cloneFromRoleId belongs to a different school,
+      // tenantDb returns null and the new role is created with no cloned permissions.
+      const source = await tdb.role.findFirst({
         where: { id: cloneFromRoleId },
         select: { permissions: { select: { permissionId: true } } },
       });
@@ -127,7 +130,7 @@ export async function POST(request: NextRequest) {
         action: 'ROLE_CREATED',
         targetType: 'role',
         targetId: newRole.id,
-        metadata: { name, scope },
+        metadata: { name, scope, clonedFrom: cloneFromRoleId ?? null },
         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
       },
     });

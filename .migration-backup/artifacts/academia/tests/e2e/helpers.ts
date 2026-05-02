@@ -1,5 +1,5 @@
 import { UserRole } from '@prisma/client';
-import { createAppSessionCookie } from '@/lib/auth/session-cookie';
+import { createAppSessionCookie, type AppSessionRole } from '@/lib/auth/session-cookie';
 import { prisma, TEST_DATA, TEST_PASSWORD_HASH } from './setup';
 
 export interface TestUser {
@@ -13,11 +13,32 @@ const PORT = process.env.PORT ?? '18373';
 export const BASE_URL = process.env.TEST_BASE_URL ?? `http://localhost:${PORT}`;
 
 /**
+ * Maps a Prisma UserRole to the AppSessionRole stored in the HMAC cookie.
+ * Mirrors the logic in src/app/api/auth/login/route.ts → dbRoleToSessionRole.
+ */
+function dbRoleToAppRole(role: UserRole): AppSessionRole {
+  switch (role) {
+    case UserRole.ADMIN:
+    case UserRole.PRINCIPAL:
+    case UserRole.ACCOUNTANT:
+      return 'admin';
+    case UserRole.FACULTY:
+      return 'faculty';
+    case UserRole.PARENT:
+      return 'parent';
+    default:
+      return 'faculty';
+  }
+}
+
+/**
  * Creates (or upserts) a User in the DB, mints a signed session cookie,
  * and returns a TestUser ready for making authenticated API requests.
  *
  * For FACULTY role, also creates/upserts a Faculty record.
  * Pass departmentId to link the faculty to a department.
+ *
+ * For PARENT role, no Faculty record is created. The cookie role is 'parent'.
  */
 export async function createUserContext(
   userId: string,
@@ -52,7 +73,7 @@ export async function createUserContext(
     }
   }
 
-  const appRole = role === UserRole.ADMIN ? 'admin' : 'faculty';
+  const appRole = dbRoleToAppRole(role);
   const cookieValue = await createAppSessionCookie({
     userId,
     email,

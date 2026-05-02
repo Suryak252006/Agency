@@ -11,8 +11,10 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
+    "test:unit": "vitest run --reporter=verbose tests/unit",
     "test:e2e": "vitest run --reporter=verbose tests/e2e",
-    "test:e2e:security": "vitest run --reporter=verbose tests/e2e/role-permissions.test.ts tests/e2e/rls-validation.test.ts tests/e2e/tenant-isolation.test.ts"
+    "test:e2e:security": "vitest run --reporter=verbose tests/e2e/role-permissions.test.ts tests/e2e/rls-validation.test.ts tests/e2e/tenant-isolation.test.ts tests/e2e/rbac-clone-isolation.test.ts",
+    "test:all": "vitest run --reporter=verbose"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

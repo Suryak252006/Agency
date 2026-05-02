@@ -5,7 +5,20 @@ import type { IUserWithPermissions } from '@/types/rbac';
 
 /**
  * Legacy AppSession type kept for backward compatibility with RBAC middleware callers.
- * New code should use getSessionUser() from @/lib/server/session instead.
+ *
+ * IMPORTANT — parent role behaviour:
+ *   getAppSession() returns null for 'parent' cookies. This is intentional.
+ *   The legacy RBAC middleware layer (withPermission, withRole, withContext, etc.)
+ *   is only used by admin and faculty API routes. Parent-facing API routes MUST
+ *   use requireSessionUser() from @/lib/server/session, which correctly handles
+ *   all three portals (admin, faculty, parent).
+ *
+ *   Rationale: returning null causes legacy routes to respond with 401, which is
+ *   the correct outcome for a parent user hitting an admin/faculty endpoint —
+ *   they are not authorised to use that interface at all.
+ *
+ * New code should use getSessionUser() / requireSessionUser() from
+ * @/lib/server/session instead of this legacy layer.
  */
 type AppSession = {
   userId: string;
@@ -30,12 +43,28 @@ function homeForRole(role: AppSessionRole): string {
 
 /**
  * Returns the AppSession from the HMAC session cookie.
- * Used by the RBAC middleware layer. Maps all admin-portal roles → 'ADMIN'.
+ * Used by the legacy RBAC middleware layer.
+ *
+ * Returns null for:
+ *   - Missing or invalid cookies
+ *   - Expired cookies
+ *   - Parent role cookies — parents must use requireSessionUser(), not this layer.
+ *     This prevents parents from silently inheriting faculty-level access
+ *     through the legacy RBAC decorators. (Sprint 1 R2 fix)
  */
 export async function getAppSession(request: NextRequest): Promise<AppSession | null> {
   const claims = await verifyAppSessionCookie(request.cookies.get(APP_SESSION_COOKIE)?.value);
 
   if (!claims) {
+    return null;
+  }
+
+  // FIX (Sprint 1 R2): Explicitly reject parent sessions at the legacy RBAC layer.
+  // Parent routes must use requireSessionUser() from @/lib/server/session.
+  // Without this guard, parent users were silently mapped to 'FACULTY' and could
+  // potentially reach faculty-only API routes if those routes only checked
+  // authentication status, not specific roles.
+  if (claims.role === 'parent') {
     return null;
   }
 

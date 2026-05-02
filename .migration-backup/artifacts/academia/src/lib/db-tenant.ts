@@ -21,32 +21,15 @@
  *
  * Throws TypeError immediately if schoolId is empty — never silently allows
  * a query without a schoolId constraint.
+ *
+ * See db-tenant-models.ts for the canonical TENANT_SCOPED_MODELS set and the
+ * list of models to add for each upcoming milestone.
  */
 
 import { db } from '@/lib/db';
+import { TENANT_SCOPED_MODELS } from '@/lib/db-tenant-models';
 
-// All Prisma model names (camelCase) that carry a schoolId column.
-// Models without schoolId (Permission, RolePermission, FacultyDepartment,
-// ClassStudent, MarksHistory) are NOT listed — they don't need schoolId injection.
-const TENANT_SCOPED_MODELS = new Set([
-  'user',
-  'role',
-  'roleAssignment',
-  'customFeature',
-  'customFeatureAssignment',
-  'rBACLog',
-  'department',
-  'faculty',
-  'class',
-  'student',
-  'exam',
-  'marks',
-  'request',
-  'auditLog',
-  'fileAsset',
-  'schoolConfig',
-]);
-
+export { TENANT_SCOPED_MODELS } from '@/lib/db-tenant-models';
 export type TenantDb = ReturnType<typeof tenantDb>;
 
 /**
