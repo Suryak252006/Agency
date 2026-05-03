@@ -44,6 +44,13 @@ export const TENANT_SCOPED_MODELS = new Set([
   // Audit / files
   'AuditLog',
   'FileAsset',
+
+  // Academic structure (Sprint 2 — M03)
+  'AcademicYear',
+  'Term',
+  'Grade',
+  'Section',
+  'Subject',
 ]);
 
 /**

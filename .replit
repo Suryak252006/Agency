@@ -22,3 +22,8 @@ timeoutMs = 20000
 [[ports]]
 localPort = 18373
 externalPort = 80
+
+[userenv]
+
+[userenv.development]
+AUTH_SECRET = "test-sprint1-secret-32chars-minimum"

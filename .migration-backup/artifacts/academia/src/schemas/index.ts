@@ -225,6 +225,99 @@ export const GetLogsQuerySchema = z.object({
 });
 
 /**
+ * Academic Structure — Sprint 2 (M03)
+ */
+export const ExamTypeSchema = z.enum([
+  'FORMATIVE',
+  'SUMMATIVE',
+  'QUARTERLY',
+  'HALF_YEARLY',
+  'ANNUAL',
+]);
+
+export const SubjectTypeSchema = z.enum([
+  'MAIN',
+  'OPTIONAL',
+  'CO_CURRICULAR',
+  'LANGUAGE',
+]);
+
+export const CreateAcademicYearSchema = z.object({
+  name: z.string().min(1).max(20).regex(/^\d{4}-\d{2,4}$/, 'Name must be in format "2024-25"'),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+}).refine((d) => new Date(d.startDate) < new Date(d.endDate), {
+  message: 'startDate must be before endDate',
+  path: ['endDate'],
+});
+
+export const UpdateAcademicYearSchema = z.object({
+  name: z.string().min(1).max(20).regex(/^\d{4}-\d{2,4}$/, 'Name must be in format "2024-25"').optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+});
+
+export const CreateTermSchema = z.object({
+  name: z.string().min(1).max(50),
+  examType: ExamTypeSchema,
+  order: z.number().int().min(1).max(10),
+  weightage: z.number().int().min(1).max(100),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+});
+
+export const UpdateTermSchema = CreateTermSchema.partial();
+
+export const CreateGradeSchema = z.object({
+  name: z.string().min(1).max(50),
+  level: z.number().int().min(0).max(12),
+  order: z.number().int().min(0).default(0),
+});
+
+export const UpdateGradeSchema = CreateGradeSchema.partial();
+
+export const CreateSectionSchema = z.object({
+  name: z.string().min(1).max(50),
+});
+
+export const UpdateSectionSchema = CreateSectionSchema.partial();
+
+export const CreateSubjectSchema = z.object({
+  name: z.string().min(1).max(100),
+  code: z.string().min(1).max(20),
+  subjectType: SubjectTypeSchema.default('MAIN'),
+  departmentId: CuidSchema.optional(),
+});
+
+export const UpdateSubjectSchema = CreateSubjectSchema.partial();
+
+export const UpdateSchoolSchema = z.object({
+  name: z.string().min(2).max(200).optional(),
+  board: z.enum(['CBSE', 'ICSE', 'STATE_BOARD', 'OTHER']).optional(),
+  medium: z.string().max(50).optional(),
+  logoKey: z.string().optional(),
+});
+
+export const UpdateSchoolConfigSchema = z.object({
+  gradingSystem: z.enum(['TEN_POINT', 'PERCENTAGE', 'LETTER']).optional(),
+  workingDays: z.number().int().min(1).max(7).optional(),
+  timezone: z.string().optional(),
+  academicYearStartMonth: z.number().int().min(1).max(12).optional(),
+  primaryColor: z.string().optional(),
+  secondaryColor: z.string().optional(),
+});
+
+export type ExamType = z.infer<typeof ExamTypeSchema>;
+export type SubjectType = z.infer<typeof SubjectTypeSchema>;
+export type CreateAcademicYear = z.infer<typeof CreateAcademicYearSchema>;
+export type UpdateAcademicYear = z.infer<typeof UpdateAcademicYearSchema>;
+export type CreateTerm = z.infer<typeof CreateTermSchema>;
+export type UpdateTerm = z.infer<typeof UpdateTermSchema>;
+export type CreateGrade = z.infer<typeof CreateGradeSchema>;
+export type CreateSection = z.infer<typeof CreateSectionSchema>;
+export type CreateSubject = z.infer<typeof CreateSubjectSchema>;
+
+/**
  * API Response Envelope
  */
 export const ApiErrorSchema = z.object({

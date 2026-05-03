@@ -56,6 +56,13 @@ const EXPECTED_SPRINT_1 = new Set([
   // Audit / assets
   'AuditLog',
   'FileAsset',
+
+  // Sprint 2 — academic entity structure (M03)
+  'AcademicYear',
+  'Term',
+  'Grade',
+  'Section',
+  'Subject',
 ]);
 
 // ─── Models explicitly excluded (no schoolId column of their own) ────────────
@@ -130,13 +137,19 @@ describe('MODELS_WITHOUT_SCHOOL_ID — exclusion list is correct', () => {
   });
 });
 
-describe('Sprint 2 readiness — reminder to update this file', () => {
-  it('TENANT_SCOPED_MODELS size is tracked — update expected size when Sprint 2 models land', () => {
-    // Current Sprint 1: 16 models
-    // Milestone 1 (Academic Structure) adds: AcademicYear, Grade, Section, Subject → size = 20
-    // Milestone 2 (Student SIS) adds: Parent, AttendanceSession, ReportCardConfig, ReportCard → size = 24
-    // Update EXPECTED_SPRINT_1 above and this assertion when you add new models.
-    const SPRINT_1_MODEL_COUNT = 16;
-    expect(TENANT_SCOPED_MODELS.size).toBe(SPRINT_1_MODEL_COUNT);
+describe('Sprint 2 — academic structure models present', () => {
+  it('TENANT_SCOPED_MODELS has 21 models after Sprint 2 M03', () => {
+    // Sprint 1: 16 models
+    // Sprint 2 M03 adds: AcademicYear, Term, Grade, Section, Subject → 21
+    expect(TENANT_SCOPED_MODELS.size).toBe(21);
+  });
+
+  it('contains every EXPECTED_SPRINT_1 model (including Sprint 2 additions)', () => {
+    for (const model of EXPECTED_SPRINT_1) {
+      expect(
+        TENANT_SCOPED_MODELS.has(model),
+        `Missing '${model}' — add it to db-tenant-models.ts`
+      ).toBe(true);
+    }
   });
 });

@@ -1,4 +1,4 @@
-const { PrismaClient, UserRole, MarksStatus, RequestStatus, RequestType } = require('@prisma/client');
+const { PrismaClient, UserRole, MarksStatus, RequestStatus, RequestType, ExamType, SubjectType } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const SCHOOL_ID = process.env.DEFAULT_SCHOOL_ID || 'school_001';
@@ -138,6 +138,12 @@ async function main() {
   await prisma.faculty.deleteMany();
   await prisma.student.deleteMany();
   await prisma.user.deleteMany();
+  // Sprint 2 — academic structure
+  await prisma.term.deleteMany();
+  await prisma.academicYear.deleteMany();
+  await prisma.grade.deleteMany();
+  await prisma.section.deleteMany();
+  await prisma.subject.deleteMany();
 
   const adminName = 'Aarav Sharma';
   const adminUser = await prisma.user.create({
@@ -341,6 +347,60 @@ async function main() {
   await prisma.auditLog.createMany({
     data: auditEntries,
   });
+
+  // ── Sprint 2 — Academic Structure ─────────────────────────────────────────
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      schoolId: SCHOOL_ID,
+      name: '2024-25',
+      startDate: new Date('2024-04-01'),
+      endDate: new Date('2025-03-31'),
+      isCurrent: true,
+    },
+  });
+
+  await prisma.term.createMany({
+    data: [
+      { schoolId: SCHOOL_ID, academicYearId: academicYear.id, name: 'FA1', examType: 'FORMATIVE', order: 1, weightage: 20 },
+      { schoolId: SCHOOL_ID, academicYearId: academicYear.id, name: 'FA2', examType: 'FORMATIVE', order: 2, weightage: 20 },
+      { schoolId: SCHOOL_ID, academicYearId: academicYear.id, name: 'SA1', examType: 'SUMMATIVE', order: 3, weightage: 30, isPublished: true },
+      { schoolId: SCHOOL_ID, academicYearId: academicYear.id, name: 'SA2', examType: 'SUMMATIVE', order: 4, weightage: 30, isPublished: true },
+    ],
+  });
+
+  await prisma.grade.createMany({
+    data: [
+      { schoolId: SCHOOL_ID, name: 'Nursery', level: 0, order: 0 },
+      { schoolId: SCHOOL_ID, name: 'KG', level: 1, order: 1 },
+      { schoolId: SCHOOL_ID, name: 'Class 1', level: 2, order: 2 },
+      { schoolId: SCHOOL_ID, name: 'Class 2', level: 3, order: 3 },
+      { schoolId: SCHOOL_ID, name: 'Class 3', level: 4, order: 4 },
+      { schoolId: SCHOOL_ID, name: 'Class 4', level: 5, order: 5 },
+      { schoolId: SCHOOL_ID, name: 'Class 5', level: 6, order: 6 },
+    ],
+  });
+
+  await prisma.section.createMany({
+    data: [
+      { schoolId: SCHOOL_ID, name: 'A' },
+      { schoolId: SCHOOL_ID, name: 'B' },
+      { schoolId: SCHOOL_ID, name: 'C' },
+    ],
+  });
+
+  await prisma.subject.createMany({
+    data: [
+      { schoolId: SCHOOL_ID, name: 'Mathematics', code: 'MATH', subjectType: 'MAIN' },
+      { schoolId: SCHOOL_ID, name: 'Science', code: 'SCI', subjectType: 'MAIN' },
+      { schoolId: SCHOOL_ID, name: 'English', code: 'ENG', subjectType: 'MAIN' },
+      { schoolId: SCHOOL_ID, name: 'Hindi', code: 'HIN', subjectType: 'LANGUAGE' },
+      { schoolId: SCHOOL_ID, name: 'Social Studies', code: 'SST', subjectType: 'MAIN' },
+      { schoolId: SCHOOL_ID, name: 'Environmental Studies', code: 'EVS', subjectType: 'MAIN' },
+      { schoolId: SCHOOL_ID, name: 'Computer Science', code: 'CS', subjectType: 'OPTIONAL' },
+      { schoolId: SCHOOL_ID, name: 'Physical Education', code: 'PE', subjectType: 'CO_CURRICULAR' },
+    ],
+  });
+
   console.log('Seed completed');
   console.log('Admin login: principal@school.in / password123');
   console.log('Faculty login: faculty@school.in / password123');

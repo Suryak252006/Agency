@@ -5,8 +5,11 @@ const NAV_ITEMS: AppShellNavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: 'dashboard', exact: true },
   { label: 'Classes', href: '/admin/classes', icon: 'classes' },
   { label: 'Students', href: '/admin/students', icon: 'students' },
+  { label: 'Academic Years', href: '/admin/academic-years', icon: 'academic-years' },
+  { label: 'Grades & Subjects', href: '/admin/grades', icon: 'grades' },
   { label: 'Requests', href: '/admin/requests', icon: 'requests' },
   { label: 'Logs', href: '/admin/logs', icon: 'logs' },
+  { label: 'School Setup', href: '/admin/setup', icon: 'setup' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -147,6 +147,11 @@ export function handleApiError(
     return apiError('CONFLICT', error.message, requestId, undefined, 409);
   }
 
+  // Prisma unique constraint violation → 409
+  if (error.code === 'P2002') {
+    return apiError('CONFLICT', 'A record with this value already exists', requestId, undefined, 409);
+  }
+
   // Default to 500
   return apiError(
     'INTERNAL_ERROR',

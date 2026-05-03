@@ -117,6 +117,11 @@ model Tenant {
   // Back-relations — every tenant-scoped model references Tenant via schoolId
   config                   SchoolConfig?
   users                    User[]
+  academicYears            AcademicYear[]
+  terms                    Term[]
+  grades                   Grade[]
+  sections                 Section[]
+  subjects                 Subject[]
   roles                    Role[]
   customFeatures           CustomFeature[]
   customFeatureAssignments CustomFeatureAssignment[]
@@ -357,6 +362,7 @@ model Department {
   classes         Class[]
   exams           Exam[]
   roleAssignments RoleAssignment[]
+  subjects        Subject[]
 
   @@unique([schoolId, code])
   @@unique([schoolId, name])
@@ -551,6 +557,110 @@ model AuditLog {
 
   @@index([schoolId, action, entityId, createdAt])
   @@index([schoolId, createdAt])
+}
+
+// ─── ACADEMIC STRUCTURE (M03 — Sprint 2) ─────────────────────────────────────
+
+enum ExamType {
+  FORMATIVE
+  SUMMATIVE
+  QUARTERLY
+  HALF_YEARLY
+  ANNUAL
+}
+
+enum SubjectType {
+  MAIN
+  OPTIONAL
+  CO_CURRICULAR
+  LANGUAGE
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "2024-25"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+  isLocked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  terms  Term[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, isCurrent])
+}
+
+model Term {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String   // "FA1", "SA2", "Term 1"
+  examType       ExamType
+  order          Int      // 1-4, used for display ordering
+  weightage      Int      // percentage contribution, e.g. 20
+  startDate      DateTime?
+  endDate        DateTime?
+  isPublished    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school       Tenant       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, academicYearId, name])
+  @@index([schoolId, academicYearId, order])
+}
+
+model Grade {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "Nursery", "KG", "Class 1" – "Class 12"
+  level     Int      // 0=Nursery, 1-12=Class 1-12; used for sorting
+  order     Int      @default(0) // explicit display order override
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, level])
+  @@unique([schoolId, name])
+  @@index([schoolId, level])
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "A", "B", "Lotus", "Rose"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Subject {
+  id           String      @id @default(cuid())
+  schoolId     String
+  name         String      // "Mathematics", "Hindi", "EVS"
+  code         String      // "MATH", "HIN", "EVS" — unique per school
+  subjectType  SubjectType @default(MAIN)
+  departmentId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  school     Tenant      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, name])
+  @@index([schoolId, subjectType])
+  @@index([departmentId])
 }
 
 // ─── FILE ASSETS ──────────────────────────────────────────────────────────────

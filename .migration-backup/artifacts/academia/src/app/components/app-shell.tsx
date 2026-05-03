@@ -4,11 +4,14 @@ import { useState, type ReactNode } from 'react';
 import {
   ArrowRight,
   BookOpen,
+  CalendarDays,
   ClipboardList,
+  GraduationCap,
   History,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
+  Settings2,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -26,6 +29,9 @@ const ICONS = {
   requests: ClipboardList,
   logs: History,
   faculty: LayoutGrid,
+  'academic-years': CalendarDays,
+  grades: GraduationCap,
+  setup: Settings2,
 } as const;
 
 export type AppShellNavItem = {
