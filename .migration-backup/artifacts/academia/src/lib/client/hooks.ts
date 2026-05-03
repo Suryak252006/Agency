@@ -88,6 +88,12 @@ export const queryKeys = {
     record: () => [...queryKeys.school.all, 'record'] as const,
     config: () => [...queryKeys.school.all, 'config'] as const,
   },
+  roles: {
+    all: ['roles'] as const,
+    lists: () => [...queryKeys.roles.all, 'list'] as const,
+    list: (page: number, pageSize: number, search: string) =>
+      [...queryKeys.roles.lists(), page, pageSize, search] as const,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -597,5 +603,35 @@ export function useUpdateSchoolConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.school.all });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to update school configuration'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Roles (RBAC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useRoles(page: number, pageSize: number, search: string) {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    search,
+  });
+  return useQuery({
+    queryKey: queryKeys.roles.list(page, pageSize, search),
+    queryFn: () => apiClient.get<any>(`/api/rbac/roles?${params.toString()}`),
+    staleTime: 30 * 1000,
+    placeholderData: (prev: any) => prev,
+  });
+}
+
+export function useDeleteRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/rbac/roles/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.roles.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to delete role'),
   });
 }

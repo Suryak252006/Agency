@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   CardContent,
@@ -44,44 +45,28 @@ import { Plus, MoreVertical, Edit2, Copy, Eye, Trash2, Search } from 'lucide-rea
 import { IRole } from '@/types/rbac';
 import RoleFormModal from './role-form-modal';
 import { toast } from 'sonner';
+import { useRoles, useDeleteRole, queryKeys } from '@/lib/client/hooks';
 
 export default function RolesPage() {
-  const [roles, setRoles] = useState<IRole[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<IRole | null>(null);
   const [isCloning, setIsCloning] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        setLoading(true);
-        const params = new URLSearchParams({
-          page: page.toString(),
-          pageSize: '10',
-          search,
-        });
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-        const res = await fetch(`/api/rbac/roles?${params}`);
-        if (!res.ok) throw new Error('Failed to fetch roles');
+  const { data: rolesData, isLoading } = useRoles(page, 10, debouncedSearch);
+  const deleteRoleMutation = useDeleteRole();
+  const queryClient = useQueryClient();
 
-        const json = await res.json();
-        setRoles(json.data?.items ?? []);
-        setTotalPages(json.data?.totalPages ?? 1);
-      } catch {
-        toast.error('Failed to fetch roles');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const debounce = setTimeout(fetchRoles, 300);
-    return () => clearTimeout(debounce);
-  }, [search, page]);
+  const roleList: IRole[] = rolesData?.data?.items ?? [];
+  const totalPages = rolesData?.data?.totalPages ?? 1;
 
   const handleCreateRole = () => {
     setSelectedRole(null);
@@ -101,23 +86,19 @@ export default function RolesPage() {
     setIsFormOpen(true);
   };
 
-  const handleDeleteRole = async () => {
+  const handleDeleteRole = () => {
     if (!deleteTargetId) return;
-
-    try {
-      const res = await fetch(`/api/rbac/roles/${deleteTargetId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete role');
-
-      setRoles((prev) => prev.filter((r) => r.id !== deleteTargetId));
-      toast.success('Role deleted successfully');
-    } catch {
-      toast.error('Failed to delete role');
-    } finally {
-      setDeleteTargetId(null);
-    }
+    deleteRoleMutation.mutate(
+      { id: deleteTargetId },
+      {
+        onSuccess: () => toast.success('Role deleted successfully'),
+        onSettled: () => setDeleteTargetId(null),
+      },
+    );
   };
 
   const handleRoleSaved = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.roles.all });
     setIsFormOpen(false);
     setPage(1);
   };
@@ -157,16 +138,16 @@ export default function RolesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Roles</CardTitle>
-          <CardDescription>Total: {roles.length} roles</CardDescription>
+          <CardDescription>Total: {roleList.length} roles</CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full rounded-lg" />
               ))}
             </div>
-          ) : roles.length === 0 ? (
+          ) : roleList.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
               No roles found. Create the first role to get started.
             </div>
@@ -185,7 +166,7 @@ export default function RolesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roles.map((role) => (
+                  {roleList.map((role) => (
                     <TableRow key={role.id}>
                       <TableCell className="font-medium">{role.name}</TableCell>
                       <TableCell className="max-w-xs truncate text-sm">
@@ -284,6 +265,7 @@ export default function RolesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteRole}
+              disabled={deleteRoleMutation.isPending}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               Delete
