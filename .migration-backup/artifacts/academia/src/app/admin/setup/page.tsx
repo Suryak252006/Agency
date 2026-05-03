@@ -3,14 +3,12 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Settings2 } from 'lucide-react';
-import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { useSchool, useSchoolConfig, useUpdateSchool, useUpdateSchoolConfig } from '@/lib/client/hooks';
 
 const BOARDS = ['CBSE', 'ICSE', 'STATE_BOARD', 'OTHER'] as const;
 const GRADING_SYSTEMS = ['TEN_POINT', 'PERCENTAGE', 'LETTER'] as const;
@@ -20,8 +18,8 @@ const MONTHS = [
 ];
 
 export default function SchoolSetupPage() {
-  const { data: schoolData, mutate: mutateSchool } = useSWR('/api/v1/school', fetcher);
-  const { data: configData, mutate: mutateConfig } = useSWR('/api/v1/school/config', fetcher);
+  const { data: schoolData } = useSchool();
+  const { data: configData } = useSchoolConfig();
 
   const school = schoolData?.data?.school;
   const config = configData?.data?.config;
@@ -33,8 +31,9 @@ export default function SchoolSetupPage() {
     timezone: 'Asia/Kolkata',
     academicYearStartMonth: '4',
   });
-  const [savingSchool, setSavingSchool] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
+
+  const updateSchoolMutation = useUpdateSchool();
+  const updateSchoolConfigMutation = useUpdateSchoolConfig();
 
   useEffect(() => {
     if (school) {
@@ -53,39 +52,24 @@ export default function SchoolSetupPage() {
     }
   }, [config]);
 
-  const handleSaveSchool = async () => {
-    setSavingSchool(true);
-    try {
-      const res = await fetch('/api/v1/school', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(schoolForm),
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      toast.success('School details saved');
-      mutateSchool();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setSavingSchool(false); }
+  const handleSaveSchool = () => {
+    updateSchoolMutation.mutate({
+      name: schoolForm.name,
+      board: schoolForm.board as 'CBSE' | 'ICSE' | 'STATE_BOARD' | 'OTHER',
+    }, {
+      onSuccess: () => toast.success('School details saved'),
+    });
   };
 
-  const handleSaveConfig = async () => {
-    setSavingConfig(true);
-    try {
-      const res = await fetch('/api/v1/school/config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gradingSystem: configForm.gradingSystem,
-          workingDays: Number(configForm.workingDays),
-          timezone: configForm.timezone,
-          academicYearStartMonth: Number(configForm.academicYearStartMonth),
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      toast.success('Configuration saved');
-      mutateConfig();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setSavingConfig(false); }
+  const handleSaveConfig = () => {
+    updateSchoolConfigMutation.mutate({
+      gradingSystem: configForm.gradingSystem as 'TEN_POINT' | 'PERCENTAGE' | 'LETTER',
+      workingDays: Number(configForm.workingDays),
+      timezone: configForm.timezone,
+      academicYearStartMonth: Number(configForm.academicYearStartMonth),
+    }, {
+      onSuccess: () => toast.success('Configuration saved'),
+    });
   };
 
   return (
@@ -124,8 +108,8 @@ export default function SchoolSetupPage() {
               </select>
             </div>
           </div>
-          <Button onClick={handleSaveSchool} disabled={savingSchool}>
-            {savingSchool ? 'Saving…' : 'Save school details'}
+          <Button onClick={handleSaveSchool} disabled={updateSchoolMutation.isPending}>
+            {updateSchoolMutation.isPending ? 'Saving…' : 'Save school details'}
           </Button>
         </CardContent>
       </Card>
@@ -178,8 +162,8 @@ export default function SchoolSetupPage() {
               </select>
             </div>
           </div>
-          <Button onClick={handleSaveConfig} disabled={savingConfig}>
-            {savingConfig ? 'Saving…' : 'Save configuration'}
+          <Button onClick={handleSaveConfig} disabled={updateSchoolConfigMutation.isPending}>
+            {updateSchoolConfigMutation.isPending ? 'Saving…' : 'Save configuration'}
           </Button>
         </CardContent>
       </Card>
