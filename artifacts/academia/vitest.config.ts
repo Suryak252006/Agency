@@ -7,6 +7,9 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30000,
     hookTimeout: 30000,
+    env: {
+      PORT: '3000',
+    },
     // e2e tests share DB state and must run sequentially
     // unit tests have no DB and could run in parallel, but keeping one config simple
     fileParallelism: false,
