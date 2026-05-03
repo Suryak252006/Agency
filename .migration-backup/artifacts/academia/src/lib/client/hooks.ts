@@ -45,6 +45,40 @@ export const queryKeys = {
     lists: () => [...queryKeys.logs.all, 'list'] as const,
     list: (action?: string, days?: number, page?: number) => [...queryKeys.logs.lists(), action, days, page] as const,
   },
+  academicYears: {
+    all: ['academicYears'] as const,
+    lists: () => [...queryKeys.academicYears.all, 'list'] as const,
+    list: () => [...queryKeys.academicYears.lists()] as const,
+    details: () => [...queryKeys.academicYears.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.academicYears.details(), id] as const,
+    terms: (yearId: string) => [...queryKeys.academicYears.detail(yearId), 'terms'] as const,
+  },
+  grades: {
+    all: ['grades'] as const,
+    lists: () => [...queryKeys.grades.all, 'list'] as const,
+    list: () => [...queryKeys.grades.lists()] as const,
+    details: () => [...queryKeys.grades.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.grades.details(), id] as const,
+  },
+  sections: {
+    all: ['sections'] as const,
+    lists: () => [...queryKeys.sections.all, 'list'] as const,
+    list: () => [...queryKeys.sections.lists()] as const,
+    details: () => [...queryKeys.sections.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.sections.details(), id] as const,
+  },
+  subjects: {
+    all: ['subjects'] as const,
+    lists: () => [...queryKeys.subjects.all, 'list'] as const,
+    list: (subjectType?: string) => [...queryKeys.subjects.lists(), subjectType] as const,
+    details: () => [...queryKeys.subjects.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.subjects.details(), id] as const,
+  },
+  school: {
+    all: ['school'] as const,
+    record: () => [...queryKeys.school.all, 'record'] as const,
+    config: () => [...queryKeys.school.all, 'config'] as const,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,6 +295,122 @@ export function useLogs(action?: string, days: number = 30, page: number = 0) {
   return useQuery({
     queryKey: queryKeys.logs.list(action, days, page),
     queryFn: () => apiClient.get<any>(`/api/logs?${query.toString()}`),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academic Years (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useAcademicYears() {
+  return useQuery({
+    queryKey: queryKeys.academicYears.list(),
+    queryFn: () => apiClient.get<any>('/api/v1/academic-years'),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useAcademicYear(id: string) {
+  return useQuery({
+    queryKey: queryKeys.academicYears.detail(id),
+    queryFn: () => apiClient.get<any>(`/api/v1/academic-years/${id}`),
+    staleTime: 60 * 1000,
+    enabled: Boolean(id),
+  });
+}
+
+export function useTerms(yearId: string) {
+  return useQuery({
+    queryKey: queryKeys.academicYears.terms(yearId),
+    queryFn: () => apiClient.get<any>(`/api/v1/academic-years/${yearId}/terms`),
+    staleTime: 60 * 1000,
+    enabled: Boolean(yearId),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grades (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useGrades() {
+  return useQuery({
+    queryKey: queryKeys.grades.list(),
+    queryFn: () => apiClient.get<any>('/api/v1/grades'),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useGrade(id: string) {
+  return useQuery({
+    queryKey: queryKeys.grades.detail(id),
+    queryFn: () => apiClient.get<any>(`/api/v1/grades/${id}`),
+    staleTime: 60 * 1000,
+    enabled: Boolean(id),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sections (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useSections() {
+  return useQuery({
+    queryKey: queryKeys.sections.list(),
+    queryFn: () => apiClient.get<any>('/api/v1/sections'),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useSection(id: string) {
+  return useQuery({
+    queryKey: queryKeys.sections.detail(id),
+    queryFn: () => apiClient.get<any>(`/api/v1/sections/${id}`),
+    staleTime: 60 * 1000,
+    enabled: Boolean(id),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subjects (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useSubjects(subjectType?: string) {
+  const query = new URLSearchParams();
+  if (subjectType) query.set('subjectType', subjectType);
+
+  return useQuery({
+    queryKey: queryKeys.subjects.list(subjectType),
+    queryFn: () => apiClient.get<any>(`/api/v1/subjects${query.size ? `?${query.toString()}` : ''}`),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useSubject(id: string) {
+  return useQuery({
+    queryKey: queryKeys.subjects.detail(id),
+    queryFn: () => apiClient.get<any>(`/api/v1/subjects/${id}`),
+    staleTime: 60 * 1000,
+    enabled: Boolean(id),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// School (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useSchool() {
+  return useQuery({
+    queryKey: queryKeys.school.record(),
+    queryFn: () => apiClient.get<any>('/api/v1/school'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSchoolConfig() {
+  return useQuery({
+    queryKey: queryKeys.school.config(),
+    queryFn: () => apiClient.get<any>('/api/v1/school/config'),
     staleTime: 5 * 60 * 1000,
   });
 }
