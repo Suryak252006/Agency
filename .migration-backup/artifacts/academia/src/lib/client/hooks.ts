@@ -133,10 +133,10 @@ export function useSaveMark() {
   return useMutation({
     mutationFn: (data: { examId: string; classId: string; studentId: string; value: string }) =>
       apiClient.post<any>('/api/marks', data),
-    onSuccess: (_: any, v: { examId: string; classId: string; studentId: string; value: string }) => {
+    onSuccess: (_data: unknown, v: { examId: string; classId: string; studentId: string; value: string }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.list(v.examId, v.classId) });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to save mark'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to save mark'),
   });
 }
 
@@ -149,7 +149,7 @@ export function useRequestLock() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to request lock'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to request lock'),
   });
 }
 
@@ -163,7 +163,7 @@ export function useApproveLock() {
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to approve lock'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to approve lock'),
   });
 }
 
@@ -177,7 +177,7 @@ export function useRejectLock() {
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to reject lock'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to reject lock'),
   });
 }
 
@@ -208,7 +208,7 @@ export function useCreateRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to create request'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to create request'),
   });
 }
 
@@ -220,7 +220,7 @@ export function useApproveRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to approve request'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to approve request'),
   });
 }
 
@@ -232,7 +232,7 @@ export function useRejectRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to reject request'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to reject request'),
   });
 }
 
@@ -436,7 +436,7 @@ export function useCreateAcademicYear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to create academic year'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to create academic year'),
   });
 }
 
@@ -448,7 +448,7 @@ export function useUpdateAcademicYear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to update academic year'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to update academic year'),
   });
 }
 
@@ -460,7 +460,7 @@ export function useDeleteAcademicYear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to delete academic year'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete academic year'),
   });
 }
 
@@ -472,7 +472,7 @@ export function useSetCurrentAcademicYear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to set current year'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to set current year'),
   });
 }
 
@@ -484,7 +484,7 @@ export function useLockAcademicYear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to lock academic year'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to lock academic year'),
   });
 }
 
@@ -500,7 +500,7 @@ export function useCreateGrade() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to create grade'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to create grade'),
   });
 }
 
@@ -512,7 +512,7 @@ export function useDeleteGrade() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to delete grade'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete grade'),
   });
 }
 
@@ -528,7 +528,7 @@ export function useCreateSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sections.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to create section'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to create section'),
   });
 }
 
@@ -540,7 +540,7 @@ export function useDeleteSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sections.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to delete section'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete section'),
   });
 }
 
@@ -556,7 +556,7 @@ export function useCreateSubject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to create subject'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to create subject'),
   });
 }
 
@@ -568,7 +568,7 @@ export function useDeleteSubject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to delete subject'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete subject'),
   });
 }
 
@@ -584,7 +584,7 @@ export function useUpdateSchool() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.school.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to update school'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to update school'),
   });
 }
 
@@ -596,7 +596,7 @@ export function useUpdateSchoolConfig() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.school.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to update school configuration'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to update school configuration'),
   });
 }
 
@@ -614,7 +614,7 @@ export function useRoles(page: number, pageSize: number, search: string) {
     queryKey: queryKeys.roles.list(page, pageSize, search),
     queryFn: () => apiClient.get<any>(`/api/rbac/roles?${params.toString()}`),
     staleTime: 30 * 1000,
-    placeholderData: (prev: any) => prev,
+    placeholderData: (prev: unknown) => prev,
   });
 }
 
@@ -626,6 +626,6 @@ export function useDeleteRole() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.roles.all });
     },
-    onError: (error: any) => toast.error(error.message || 'Failed to delete role'),
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete role'),
   });
 }

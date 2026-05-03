@@ -121,7 +121,7 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <>
-                {classList.slice(0, 5).map((item: any) => (
+                {classList.slice(0, 5).map((item: { id: string; name: string; grade: number; section: string; subject: string; _count?: { students: number } }) => (
                   <div key={item.id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md">
                     <div className="min-w-0">
                       <p className="font-medium text-slate-950">{item.name}</p>

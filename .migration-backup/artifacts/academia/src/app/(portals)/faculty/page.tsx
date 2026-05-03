@@ -66,7 +66,7 @@ export default function FacultyDashboardPage() {
             <CardDescription>Use these sections to continue marks entry for assigned classes only.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(classes.data?.data?.classes ?? []).slice(0, 5).map((item: any) => (
+            {((classes.data?.data?.classes ?? []) as Array<{ id: string; name: string; grade: number; section: string; subject: string }>).slice(0, 5).map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
                 <div>
                   <p className="font-medium text-slate-950">{item.name}</p>

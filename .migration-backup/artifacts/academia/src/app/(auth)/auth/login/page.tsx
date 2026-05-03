@@ -34,9 +34,9 @@ export default function LoginPage() {
       });
 
       const text = await response.text();
-      let payload: any;
+      let payload: { message?: string; data?: { redirectTo?: string; role?: string } };
       try {
-        payload = JSON.parse(text);
+        payload = JSON.parse(text) as typeof payload;
       } catch {
         throw new Error('Login API returned HTML. Check src/app/api/auth/login/route.ts');
       }
@@ -51,8 +51,8 @@ export default function LoginPage() {
         (payload.data?.role === 'admin' ? '/admin' : '/faculty');
       router.replace(redirectTo);
       router.refresh();
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed. Please try again.');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

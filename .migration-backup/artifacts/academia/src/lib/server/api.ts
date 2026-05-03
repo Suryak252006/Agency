@@ -80,22 +80,34 @@ export function copyResponseCookies(from: NextResponse, to: NextResponse) {
 /**
  * Parse and validate request body with Zod
  */
+export interface ParseBodyError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
 export async function parseBody<T>(
   request: NextRequest,
   schema: ZodTypeAny
-): Promise<{ success: true; data: z.infer<typeof schema> } | { success: false; error: any }> {
+): Promise<{ success: true; data: z.infer<typeof schema> } | { success: false; error: ParseBodyError }> {
   try {
     const body = await request.json();
     const parsed = schema.parse(body);
     return { success: true, data: parsed };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logValidationError(request.nextUrl.pathname, error);
+    const details: Record<string, unknown> | undefined =
+      error instanceof ZodError
+        ? { errors: error.errors }
+        : error instanceof Error
+        ? { message: error.message }
+        : undefined;
     return {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Invalid request body',
-        details: error.errors || error.message,
+        details,
       },
     };
   }
@@ -105,7 +117,7 @@ export async function parseBody<T>(
  * Handle API route errors uniformly
  */
 export function handleApiError(
-  error: any,
+  error: unknown,
   requestId: string,
   context?: string
 ) {
@@ -121,43 +133,49 @@ export function handleApiError(
     );
   }
 
-  if (error.code === 'VALIDATION_ERROR') {
-    return apiError(
-      'VALIDATION_ERROR',
-      error.message,
-      requestId,
-      error.details,
-      400
-    );
+  if (typeof error === 'object' && error !== null) {
+    const e = error as Record<string, unknown>;
+
+    if (e['code'] === 'VALIDATION_ERROR') {
+      return apiError(
+        'VALIDATION_ERROR',
+        String(e['message'] ?? 'Validation error'),
+        requestId,
+        typeof e['details'] === 'object' && e['details'] !== null
+          ? (e['details'] as Record<string, unknown>)
+          : undefined,
+        400
+      );
+    }
+
+    if (e['code'] === 'UNAUTHORIZED') {
+      return apiError('UNAUTHORIZED', 'Unauthorized access', requestId, undefined, 401);
+    }
+
+    if (e['code'] === 'FORBIDDEN') {
+      return apiError('FORBIDDEN', 'Access forbidden', requestId, undefined, 403);
+    }
+
+    if (e['code'] === 'NOT_FOUND') {
+      return apiError('NOT_FOUND', 'Resource not found', requestId, undefined, 404);
+    }
+
+    if (e['code'] === 'CONFLICT') {
+      return apiError('CONFLICT', String(e['message'] ?? 'Conflict'), requestId, undefined, 409);
+    }
+
+    // Prisma unique constraint violation → 409
+    if (e['code'] === 'P2002') {
+      return apiError('CONFLICT', 'A record with this value already exists', requestId, undefined, 409);
+    }
   }
 
-  if (error.code === 'UNAUTHORIZED') {
-    return apiError('UNAUTHORIZED', 'Unauthorized access', requestId, undefined, 401);
-  }
-
-  if (error.code === 'FORBIDDEN') {
-    return apiError('FORBIDDEN', 'Access forbidden', requestId, undefined, 403);
-  }
-
-  if (error.code === 'NOT_FOUND') {
-    return apiError('NOT_FOUND', 'Resource not found', requestId, undefined, 404);
-  }
-
-  if (error.code === 'CONFLICT') {
-    return apiError('CONFLICT', error.message, requestId, undefined, 409);
-  }
-
-  // Prisma unique constraint violation → 409
-  if (error.code === 'P2002') {
-    return apiError('CONFLICT', 'A record with this value already exists', requestId, undefined, 409);
-  }
-
-  // Default to 500
+  const msg = error instanceof Error ? error.message : undefined;
   return apiError(
     'INTERNAL_ERROR',
     'An internal server error occurred',
     requestId,
-    process.env.NODE_ENV === 'development' ? { error: error.message } : undefined,
+    process.env.NODE_ENV === 'development' ? { error: msg } : undefined,
     500
   );
 }
