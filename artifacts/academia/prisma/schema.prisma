@@ -1,0 +1,689 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum SubscriptionTier {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CHURNED
+}
+
+enum SchoolBoard {
+  CBSE
+  ICSE
+  STATE_BOARD
+  OTHER
+}
+
+// Extended: PRINCIPAL, ACCOUNTANT, PARENT added for ERP
+enum UserRole {
+  ADMIN
+  FACULTY
+  PRINCIPAL
+  ACCOUNTANT
+  PARENT
+}
+
+enum SystemRole {
+  SUPER_ADMIN
+  ADMIN
+  HOD
+  FACULTY
+}
+
+enum PermissionScope {
+  GLOBAL
+  SCHOOL
+  BRANCH
+  DEPARTMENT
+}
+
+enum CustomFeatureType {
+  MENU_PAGE
+  BUTTON_ACTION
+  REPORT
+  API_ACCESS
+  HIDDEN_TOOL
+}
+
+enum AccessScope {
+  GLOBAL
+  DEPARTMENT
+  USER_SPECIFIC
+}
+
+enum FeatureStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum MarksStatus {
+  SUBMITTED
+  LOCK_PENDING
+  LOCKED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  EDIT_MARKS
+  ACCESS_REQUEST
+  CORRECTION_REQUEST
+}
+
+enum FileAssetStatus {
+  UPLOADING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+// ─── TENANT (SaaS root — every record belongs to one Tenant) ─────────────────
+
+model Tenant {
+  id                 String             @id @default(cuid())
+  slug               String             @unique  // "springdale-nashik" — URL-safe, never changes
+  name               String             // "Springdale Public School, Nashik"
+  board              SchoolBoard        @default(CBSE)
+  medium             String             @default("English")
+  subscriptionTier   SubscriptionTier   @default(STARTER)
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime?
+  isActive           Boolean            @default(true)
+  settings           Json?              // { primaryColor, secondaryColor, logoKey, academicYearStart }
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Back-relations — every tenant-scoped model references Tenant via schoolId
+  config                   SchoolConfig?
+  users                    User[]
+  academicYears            AcademicYear[]
+  terms                    Term[]
+  grades                   Grade[]
+  sections                 Section[]
+  subjects                 Subject[]
+  roles                    Role[]
+  customFeatures           CustomFeature[]
+  customFeatureAssignments CustomFeatureAssignment[]
+  rbacLogs                 RBACLog[]
+  departments              Department[]
+  faculty                  Faculty[]
+  classes                  Class[]
+  students                 Student[]
+  exams                    Exam[]
+  marks                    Marks[]
+  requests                 Request[]
+  auditLogs                AuditLog[]
+  fileAssets               FileAsset[]
+
+  @@index([subscriptionStatus, isActive])
+}
+
+model SchoolConfig {
+  id                     String   @id @default(cuid())
+  schoolId               String   @unique
+  gradingSystem          String   @default("TEN_POINT") // TEN_POINT | PERCENTAGE | LETTER
+  workingDays            Int      @default(6)           // 5 or 6
+  timezone               String   @default("Asia/Kolkata")
+  academicYearStartMonth Int      @default(4)           // April = 4
+  primaryColor           String?
+  secondaryColor         String?
+  logoKey                String?                        // FileAsset key
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+}
+
+// ─── USERS & AUTH ─────────────────────────────────────────────────────────────
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String    // bcrypt hash
+  name        String
+  role        UserRole
+  schoolId    String
+  // Sprint 1 additions (M02)
+  phone       String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  avatarUrl   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Tenant FK
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  // Existing relations
+  faculty               Faculty?
+  auditLogs             AuditLog[]
+  requests              Request[]
+  fileAssets            FileAsset[]
+  roles                 RoleAssignment[]
+  customFeatures        CustomFeatureAssignment[]
+  createdRoles          Role[]
+  createdCustomFeatures CustomFeature[]
+  rbacLogs              RBACLog[]
+  assignedRoles         RoleAssignment[]         @relation("AssignedByUser")
+  assignedFeatures      CustomFeatureAssignment[] @relation("AssignedByFeature")
+  acceptedFeatures      CustomFeatureAssignment[] @relation("AcceptedFeatures")
+  departmentsHead       Department[]
+  marksLocked           Marks[]
+
+  @@index([email])
+  @@index([schoolId, role])
+  @@index([schoolId, isActive])
+}
+
+// ─── RBAC ─────────────────────────────────────────────────────────────────────
+
+model Role {
+  id          String          @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  systemRole  SystemRole?
+  scope       PermissionScope @default(SCHOOL)
+  status      Boolean         @default(true)
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  school  Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  creator User   @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  permissions          RolePermission[]
+  userAssignments      RoleAssignment[]
+  customFeatureAssignments CustomFeatureAssignment[] @relation("RoleCustomFeatures")
+
+  @@unique([schoolId, name])
+  @@index([schoolId, systemRole])
+  @@index([schoolId, status])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model RoleAssignment {
+  id           String   @id @default(cuid())
+  userId       String
+  roleId       String
+  schoolId     String
+  departmentId String?
+  assignedBy   String
+  assignedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedByUser User        @relation("AssignedByUser", fields: [assignedBy], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId, schoolId, departmentId])
+  @@index([userId, schoolId, departmentId])
+  @@index([roleId, schoolId, departmentId])
+  @@index([departmentId])
+}
+
+model CustomFeature {
+  id          String            @id @default(cuid())
+  schoolId    String
+  name        String
+  key         String
+  module      String
+  description String?
+  type        CustomFeatureType @default(HIDDEN_TOOL)
+  scope       AccessScope       @default(GLOBAL)
+  status      FeatureStatus     @default(ACTIVE)
+  createdBy   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  school      Tenant                      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  creator     User                        @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  assignments CustomFeatureAssignment[]
+
+  @@unique([schoolId, key])
+  @@index([schoolId, status])
+  @@index([module])
+}
+
+model CustomFeatureAssignment {
+  id                 String    @id @default(cuid())
+  schoolId           String
+  featureId          String
+  roleId             String?
+  userId             String?
+  departmentId       String?
+  startDate          DateTime  @default(now())
+  expiryDate         DateTime?
+  requiresAcceptance Boolean   @default(false)
+  acceptedAt         DateTime?
+  acceptedBy         String?
+  declinedAt         DateTime?
+  declinedBy         String?
+  declineReason      String?
+  assignedBy         String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  school         Tenant        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  feature        CustomFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  role           Role?         @relation("RoleCustomFeatures", fields: [roleId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser User          @relation("AssignedByFeature", fields: [assignedBy], references: [id], onDelete: Restrict)
+  acceptedByUser User?         @relation("AcceptedFeatures", fields: [acceptedBy], references: [id], onDelete: SetNull)
+
+  @@unique([featureId, roleId, userId, schoolId])
+  @@index([schoolId, featureId])
+  @@index([userId, schoolId])
+  @@index([roleId, schoolId])
+  @@index([expiryDate])
+}
+
+model RBACLog {
+  id         String   @id @default(cuid())
+  schoolId   String
+  actorId    String
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  actor  User   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, action, createdAt])
+  @@index([schoolId, targetType, targetId])
+  @@index([actorId])
+}
+
+// ─── DEPARTMENTS & FACULTY ────────────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  code      String?
+  headId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  head   User?  @relation(fields: [headId], references: [id], onDelete: SetNull)
+
+  faculty         FacultyDepartment[]
+  classes         Class[]
+  exams           Exam[]
+  roleAssignments RoleAssignment[]
+  subjects        Subject[]
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@index([headId])
+}
+
+model Faculty {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  schoolId  String
+  createdAt DateTime @default(now())
+
+  school      Tenant              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  departments FacultyDepartment[]
+  classes     Class[]
+
+  @@index([schoolId])
+}
+
+model FacultyDepartment {
+  id           String   @id @default(cuid())
+  facultyId    String
+  departmentId String
+  primary      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  faculty    Faculty    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, departmentId])
+  @@index([departmentId])
+}
+
+// ─── CLASSES & STUDENTS ───────────────────────────────────────────────────────
+
+model Class {
+  id           String   @id @default(cuid())
+  schoolId     String
+  departmentId String
+  name         String
+  grade        Int
+  section      String
+  subject      String
+  facultyId    String
+  createdAt    DateTime @default(now())
+
+  school     Tenant       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  faculty    Faculty      @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  students   ClassStudent[]
+  marks      Marks[]
+  exams      Exam[]
+
+  @@unique([schoolId, departmentId, grade, section, subject])
+  @@index([schoolId, departmentId])
+  @@index([schoolId, grade, section])
+  @@index([departmentId, facultyId])
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  schoolId  String
+  email     String
+  name      String
+  rollNo    String
+  createdAt DateTime @default(now())
+
+  school  Tenant         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  classes ClassStudent[]
+  marks   Marks[]
+
+  @@unique([schoolId, email])
+  @@index([schoolId])
+  @@index([schoolId, name])
+}
+
+model ClassStudent {
+  id         String   @id @default(cuid())
+  classId    String
+  studentId  String
+  enrolledAt DateTime @default(now())
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+// ─── EXAMS & MARKS ────────────────────────────────────────────────────────────
+
+model Exam {
+  id           String    @id @default(cuid())
+  schoolId     String
+  departmentId String
+  classId      String?
+  name         String
+  maxMarks     Int
+  startDate    DateTime
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+
+  school     Tenant     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  class      Class?     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  marks      Marks[]
+
+  @@unique([schoolId, departmentId, name, startDate])
+  @@index([schoolId, departmentId])
+  @@index([departmentId, classId])
+  @@index([schoolId, startDate])
+}
+
+model Marks {
+  id              String      @id @default(cuid())
+  schoolId        String
+  examId          String
+  classId         String
+  studentId       String
+  value           String      // "75" | "AB" | "NA"
+  status          MarksStatus @default(SUBMITTED)
+  lockRequestedAt DateTime?
+  lockedAt        DateTime?
+  lockedBy        String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  school  Tenant       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  exam    Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class   Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  locker  User?        @relation(fields: [lockedBy], references: [id], onDelete: SetNull)
+  history MarksHistory[]
+
+  @@unique([examId, studentId])
+  @@index([schoolId, examId, classId, status])
+  @@index([classId, examId, status])
+  @@index([lockedBy])
+}
+
+model MarksHistory {
+  id        String      @id @default(cuid())
+  marksId   String
+  value     String
+  status    MarksStatus
+  changedBy String
+  reason    String?
+  createdAt DateTime    @default(now())
+
+  marks Marks @relation(fields: [marksId], references: [id], onDelete: Restrict)
+
+  @@index([marksId, createdAt])
+}
+
+// ─── REQUESTS ─────────────────────────────────────────────────────────────────
+
+model Request {
+  id          String        @id @default(cuid())
+  schoolId    String
+  userId      String
+  type        RequestType
+  status      RequestStatus @default(PENDING)
+  marksId     String?
+  reason      String
+  response    String?
+  respondedBy String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status, createdAt])
+}
+
+// ─── AUDIT ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  schoolId  String
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, action, entityId, createdAt])
+  @@index([schoolId, createdAt])
+}
+
+// ─── ACADEMIC STRUCTURE (M03 — Sprint 2) ─────────────────────────────────────
+
+enum ExamType {
+  FORMATIVE
+  SUMMATIVE
+  QUARTERLY
+  HALF_YEARLY
+  ANNUAL
+}
+
+enum SubjectType {
+  MAIN
+  OPTIONAL
+  CO_CURRICULAR
+  LANGUAGE
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "2024-25"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+  isLocked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  terms  Term[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, isCurrent])
+}
+
+model Term {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String   // "FA1", "SA2", "Term 1"
+  examType       ExamType
+  order          Int      // 1-4, used for display ordering
+  weightage      Int      // percentage contribution, e.g. 20
+  startDate      DateTime?
+  endDate        DateTime?
+  isPublished    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school       Tenant       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, academicYearId, name])
+  @@index([schoolId, academicYearId, order])
+}
+
+model Grade {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "Nursery", "KG", "Class 1" – "Class 12"
+  level     Int      // 0=Nursery, 1-12=Class 1-12; used for sorting
+  order     Int      @default(0) // explicit display order override
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, level])
+  @@unique([schoolId, name])
+  @@index([schoolId, level])
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // "A", "B", "Lotus", "Rose"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Subject {
+  id           String      @id @default(cuid())
+  schoolId     String
+  name         String      // "Mathematics", "Hindi", "EVS"
+  code         String      // "MATH", "HIN", "EVS" — unique per school
+  subjectType  SubjectType @default(MAIN)
+  departmentId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  school     Tenant      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, name])
+  @@index([schoolId, subjectType])
+  @@index([departmentId])
+}
+
+// ─── FILE ASSETS ──────────────────────────────────────────────────────────────
+
+model FileAsset {
+  id          String          @id @default(cuid())
+  schoolId    String
+  ownerId     String
+  bucket      String
+  storageKey  String
+  storagePath String?
+  fileName    String
+  fileType    String
+  sizeBytes   Int
+  status      FileAssetStatus @default(UPLOADING)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  school Tenant @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  owner  User   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@unique([bucket, storageKey])
+  @@index([schoolId, ownerId, createdAt])
+  @@index([schoolId, status, createdAt])
+  @@index([bucket, storageKey])
+}

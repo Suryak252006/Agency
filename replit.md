@@ -28,9 +28,9 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Migration Project — School ERP (Next.js → Replit)
 
-The original Next.js "academia" app (imported from Vercel) lives in
-`.migration-backup/artifacts/academia/` and runs as a standalone Next.js 15 app
-on port 18373 (workflow: `.migration-backup/artifacts/academia: web`).
+The Next.js "academia" app lives in `artifacts/academia/` and runs as a
+registered workspace artifact on port 3000 (workflow: `artifacts/academia: web`).
+The original Vercel source is archived in `.migration-backup/artifacts/academia/`.
 
 The migration is being executed sprint-by-sprint:
 
@@ -38,7 +38,8 @@ The migration is being executed sprint-by-sprint:
 |--------|-------|--------|
 | Sprint 1 | Risk fixes (tenant isolation, parent role, RBAC clone) | ✅ DONE |
 | Sprint 2 | Academic structure schema, APIs, UI, E2E tests | ✅ DONE |
-| Sprint 3+ | Porting Next.js → Replit pnpm workspace (react-vite artifact) | 🔜 PENDING |
+| Graduation | Moved from `.migration-backup/` → `artifacts/academia/` (registered artifact) | ✅ DONE |
+| Sprint 3+ | Frontend standardisation (TanStack Query, shared components, route groups) | ✅ DONE (Batches 0–19) |
 
 ### Sprint 1 Risk Fixes (✅ Complete)
 
