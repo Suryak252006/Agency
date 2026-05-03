@@ -26,7 +26,16 @@ function getSessionSecret() {
   const secret = process.env.AUTH_SECRET;
 
   if (!secret) {
-    throw new Error('Missing AUTH_SECRET');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Missing AUTH_SECRET env variable. Set it in your deployment environment.');
+    }
+    // In development, warn loudly but use a fallback so the app still boots
+    // without a .env file configured. Never ship this to production.
+    console.warn(
+      '[academia] AUTH_SECRET is not set. Using an insecure dev fallback.\n' +
+      'Create a .env file from .env.example and set AUTH_SECRET to a real secret.'
+    );
+    return 'dev-insecure-fallback-secret-do-not-use-in-prod-32c';
   }
 
   return secret;
