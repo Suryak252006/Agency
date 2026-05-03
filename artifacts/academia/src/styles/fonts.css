@@ -1,0 +1,20 @@
+/* ─── Google Fonts — Inter ─────────────────────────────────────────────────
+   Inter is loaded here so it is available to the entire app before Tailwind
+   utility classes are resolved. The @layer base block below sets font-family
+   on body so every element inherits it without needing a Tailwind utility.
+
+   Why Inter:
+     - Matches the app's slate/blue/sky design language exactly
+     - Designed for screen readability at 12px–18px (all text sizes used here)
+     - Pairs cleanly with numeric tabular figures used in dashboard tables
+     - Variable font axis covers weights 100–900 in one HTTP request
+── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+@layer base {
+  body {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+      'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  }
+}

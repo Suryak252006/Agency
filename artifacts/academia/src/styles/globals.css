@@ -1,0 +1,67 @@
+/* ─── Global resets & polish ────────────────────────────────────────────────
+   These rules extend theme.css @layer base with things NOT already covered
+   there:
+     - smooth scroll on html  (theme.css only sets font-size on html)
+     - selection highlight colour matching --primary (#1d4ed8)
+     - focus-visible ring using the existing --ring CSS variable
+     - scrollbar styling so sidebar and tables look polished
+     - reduced-motion safety net for all transitions/animations
+
+   Nothing here duplicates any rule already in theme.css @layer base.
+── */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Text selection — primary blue at 15% opacity, readable on all surfaces */
+  ::selection {
+    background-color: rgb(29 78 216 / 0.15);
+    color: inherit;
+  }
+
+  /* Focus-visible ring — reuses --ring from theme.css :root so it stays
+     in sync if the theme token ever changes */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* Slim custom scrollbar (webkit only — no-op on Firefox, which uses
+     scrollbar-width: thin via the standard property below) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(148 163 184 / 0.4); /* slate-400/40 */
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(100 116 139 / 0.6); /* slate-500/60 */
+  }
+
+  /* Reduced-motion safety net — honours user OS preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
