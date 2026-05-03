@@ -3,99 +3,88 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { GraduationCap, LayoutGrid, BookOpen, Plus, Trash2 } from 'lucide-react';
-import useSWR from 'swr';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import {
+  useGrades,
+  useSections,
+  useSubjects,
+  useCreateGrade,
+  useDeleteGrade,
+  useCreateSection,
+  useDeleteSection,
+  useCreateSubject,
+  useDeleteSubject,
+} from '@/lib/client/hooks';
+import type { GradeRecord, SectionRecord, SubjectRecord } from '@/schemas';
 
 export default function GradesPage() {
-  const grades = useSWR('/api/v1/grades', fetcher);
-  const sections = useSWR('/api/v1/sections', fetcher);
-  const subjects = useSWR('/api/v1/subjects', fetcher);
+  const { data: gradesData } = useGrades();
+  const { data: sectionsData } = useSections();
+  const { data: subjectsData } = useSubjects();
+
+  const gradeList: GradeRecord[] = gradesData?.data?.grades ?? [];
+  const sectionList: SectionRecord[] = sectionsData?.data?.sections ?? [];
+  const subjectList: SubjectRecord[] = subjectsData?.data?.subjects ?? [];
 
   const [gradeForm, setGradeForm] = useState({ name: '', level: '' });
   const [sectionForm, setSectionForm] = useState({ name: '' });
   const [subjectForm, setSubjectForm] = useState({ name: '', code: '', subjectType: 'MAIN' });
-  const [creatingGrade, setCreatingGrade] = useState(false);
-  const [creatingSection, setCreatingSection] = useState(false);
-  const [creatingSubject, setCreatingSubject] = useState(false);
 
-  const gradeList = grades.data?.data?.grades ?? [];
-  const sectionList = sections.data?.data?.sections ?? [];
-  const subjectList = subjects.data?.data?.subjects ?? [];
+  const createGradeMutation = useCreateGrade();
+  const deleteGradeMutation = useDeleteGrade();
+  const createSectionMutation = useCreateSection();
+  const deleteSectionMutation = useDeleteSection();
+  const createSubjectMutation = useCreateSubject();
+  const deleteSubjectMutation = useDeleteSubject();
 
-  const handleCreateGrade = async () => {
+  const handleCreateGrade = () => {
     if (!gradeForm.name || gradeForm.level === '') { toast.error('Name and level are required'); return; }
-    setCreatingGrade(true);
-    try {
-      const res = await fetch('/api/v1/grades', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: gradeForm.name, level: Number(gradeForm.level) }),
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      toast.success('Grade created');
-      setGradeForm({ name: '', level: '' });
-      grades.mutate();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setCreatingGrade(false); }
+    createGradeMutation.mutate(
+      { name: gradeForm.name, level: Number(gradeForm.level), order: 0 },
+      { onSuccess: () => { toast.success('Grade created'); setGradeForm({ name: '', level: '' }); } },
+    );
   };
 
-  const handleDeleteGrade = async (id: string) => {
-    const res = await fetch(`/api/v1/grades/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast.success('Deleted'); grades.mutate(); }
-    else toast.error('Failed to delete');
+  const handleDeleteGrade = (id: string) => {
+    deleteGradeMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Deleted'),
+    });
   };
 
-  const handleCreateSection = async () => {
+  const handleCreateSection = () => {
     if (!sectionForm.name) { toast.error('Name is required'); return; }
-    setCreatingSection(true);
-    try {
-      const res = await fetch('/api/v1/sections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sectionForm),
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      toast.success('Section created');
-      setSectionForm({ name: '' });
-      sections.mutate();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setCreatingSection(false); }
+    createSectionMutation.mutate(sectionForm, {
+      onSuccess: () => { toast.success('Section created'); setSectionForm({ name: '' }); },
+    });
   };
 
-  const handleDeleteSection = async (id: string) => {
-    const res = await fetch(`/api/v1/sections/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast.success('Deleted'); sections.mutate(); }
-    else toast.error('Failed to delete');
+  const handleDeleteSection = (id: string) => {
+    deleteSectionMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Deleted'),
+    });
   };
 
-  const handleCreateSubject = async () => {
+  const handleCreateSubject = () => {
     if (!subjectForm.name || !subjectForm.code) { toast.error('Name and code are required'); return; }
-    setCreatingSubject(true);
-    try {
-      const res = await fetch('/api/v1/subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subjectForm),
-      });
-      if (!res.ok) throw new Error((await res.json()).message);
-      toast.success('Subject created');
-      setSubjectForm({ name: '', code: '', subjectType: 'MAIN' });
-      subjects.mutate();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setCreatingSubject(false); }
+    createSubjectMutation.mutate(
+      {
+        name: subjectForm.name,
+        code: subjectForm.code,
+        subjectType: subjectForm.subjectType as 'MAIN' | 'OPTIONAL' | 'CO_CURRICULAR' | 'LANGUAGE',
+      },
+      { onSuccess: () => { toast.success('Subject created'); setSubjectForm({ name: '', code: '', subjectType: 'MAIN' }); } },
+    );
   };
 
-  const handleDeleteSubject = async (id: string) => {
-    const res = await fetch(`/api/v1/subjects/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast.success('Deleted'); subjects.mutate(); }
-    else toast.error('Failed to delete');
+  const handleDeleteSubject = (id: string) => {
+    deleteSubjectMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Deleted'),
+    });
   };
 
   const subjectTypeBadge: Record<string, string> = {
@@ -131,13 +120,13 @@ export default function GradesPage() {
                 <Label>Level (0–12)</Label>
                 <Input type="number" min={0} max={12} placeholder="1" value={gradeForm.level} onChange={(e) => setGradeForm((f) => ({ ...f, level: e.target.value }))} className="w-24" />
               </div>
-              <Button onClick={handleCreateGrade} disabled={creatingGrade}>
-                <Plus className="mr-1.5 h-4 w-4" />{creatingGrade ? 'Adding…' : 'Add'}
+              <Button onClick={handleCreateGrade} disabled={createGradeMutation.isPending}>
+                <Plus className="mr-1.5 h-4 w-4" />{createGradeMutation.isPending ? 'Adding…' : 'Add'}
               </Button>
             </CardContent>
           </Card>
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {gradeList.map((g: any) => (
+            {gradeList.map((g) => (
               <div key={g.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2.5">
                 <div>
                   <div className="text-sm font-medium text-slate-800">{g.name}</div>
@@ -159,13 +148,13 @@ export default function GradesPage() {
                 <Label>Name</Label>
                 <Input placeholder="A" value={sectionForm.name} onChange={(e) => setSectionForm({ name: e.target.value })} className="w-36" />
               </div>
-              <Button onClick={handleCreateSection} disabled={creatingSection}>
-                <Plus className="mr-1.5 h-4 w-4" />{creatingSection ? 'Adding…' : 'Add'}
+              <Button onClick={handleCreateSection} disabled={createSectionMutation.isPending}>
+                <Plus className="mr-1.5 h-4 w-4" />{createSectionMutation.isPending ? 'Adding…' : 'Add'}
               </Button>
             </CardContent>
           </Card>
           <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-6">
-            {sectionList.map((s: any) => (
+            {sectionList.map((s) => (
               <div key={s.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2.5">
                 <span className="text-sm font-medium text-slate-800">{s.name}</span>
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => handleDeleteSection(s.id)}>
@@ -201,13 +190,13 @@ export default function GradesPage() {
                   <option value="LANGUAGE">Language</option>
                 </select>
               </div>
-              <Button onClick={handleCreateSubject} disabled={creatingSubject}>
-                <Plus className="mr-1.5 h-4 w-4" />{creatingSubject ? 'Adding…' : 'Add'}
+              <Button onClick={handleCreateSubject} disabled={createSubjectMutation.isPending}>
+                <Plus className="mr-1.5 h-4 w-4" />{createSubjectMutation.isPending ? 'Adding…' : 'Add'}
               </Button>
             </CardContent>
           </Card>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {subjectList.map((s: any) => (
+            {subjectList.map((s) => (
               <div key={s.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-3 py-2.5">
                 <div>
                   <div className="flex items-center gap-2">
