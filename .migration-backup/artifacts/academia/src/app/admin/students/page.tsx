@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStudents } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 interface Student {
   id: string;
@@ -43,9 +44,7 @@ export default function AdminStudentsPage() {
             </Card>
           ))
         ) : items.length === 0 && !students.isError ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-            No students found for this tenant.
-          </div>
+          <EmptyState message="No students found for this tenant." />
         ) : (
           items.map((student) => (
             <Card key={student.id}>

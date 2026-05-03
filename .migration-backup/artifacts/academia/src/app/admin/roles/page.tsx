@@ -47,6 +47,7 @@ import RoleFormModal from './role-form-modal';
 import { toast } from 'sonner';
 import { useRoles, useDeleteRole, queryKeys } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 export default function RolesPage() {
   const [search, setSearch] = useState('');
@@ -147,9 +148,7 @@ export default function RolesPage() {
               ))}
             </div>
           ) : roleList.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-              No roles found. Create the first role to get started.
-            </div>
+            <EmptyState message="No roles found. Create the first role to get started." />
           ) : (
             <div className="overflow-x-auto">
               <Table>

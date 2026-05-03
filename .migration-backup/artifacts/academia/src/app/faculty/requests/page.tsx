@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useCreateRequest, useRequests } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 const MIN_REASON_LENGTH = 10;
 
@@ -97,9 +98,7 @@ export default function FacultyRequestsPage() {
             </Card>
           ))
         ) : items.length === 0 && !requests.isError ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-            No requests submitted yet.
-          </div>
+          <EmptyState message="No requests submitted yet." />
         ) : (
           items.map((item) => (
             <Card key={item.id}>

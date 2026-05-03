@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { useApproveRequest, useRejectRequest, useRequests } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 interface Request {
   id: string;
@@ -92,9 +93,7 @@ export default function AdminRequestsPage() {
             </Card>
           ))
         ) : items.length === 0 && !requests.isError ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-            No {filter?.toLowerCase() ?? ''} requests found.
-          </div>
+          <EmptyState message={`No ${filter?.toLowerCase() ?? ''} requests found.`} />
         ) : (
           items.map((item) => (
             <Card key={item.id}>

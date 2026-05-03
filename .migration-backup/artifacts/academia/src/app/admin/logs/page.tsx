@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLogs } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 interface LogEntry {
   id: string;
@@ -73,9 +74,7 @@ export default function AdminLogsPage() {
               </div>
             ))
           ) : items.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-              No audit events matched the current filter.
-            </div>
+            <EmptyState message="No audit events matched the current filter." />
           ) : (
             items.map((log) => (
               <div key={log.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

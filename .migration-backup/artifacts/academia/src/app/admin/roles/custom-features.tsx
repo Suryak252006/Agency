@@ -46,6 +46,7 @@ import { ICustomFeature, ICustomFeatureAssignment } from '@/types/rbac';
 import CustomFeatureFormModal from './custom-feature-form-modal';
 import AssignFeatureModal from './assign-feature-modal';
 import { toast } from 'sonner';
+import { EmptyState } from '@/components/empty-state';
 
 export default function CustomFeaturesPage() {
   const [features, setFeatures] = useState<ICustomFeature[]>([]);
@@ -197,9 +198,7 @@ export default function CustomFeaturesPage() {
                   ))}
                 </div>
               ) : features.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-                  No custom features found. Create the first one to get started.
-                </div>
+                <EmptyState message="No custom features found. Create the first one to get started." />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -281,9 +280,7 @@ export default function CustomFeaturesPage() {
                   ))}
                 </div>
               ) : assignments.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">
-                  No assignments yet. Assign a feature from the Custom Features tab.
-                </div>
+                <EmptyState message="No assignments yet. Assign a feature from the Custom Features tab." />
               ) : (
                 <div className="space-y-3">
                   {assignments.map((assignment) => (
