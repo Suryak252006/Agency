@@ -1,4 +1,4 @@
-import { AppShell, type AppShellNavItem } from '@/app/components/app-shell';
+import { AppShell, type AppShellNavItem } from '@/components/app-shell';
 import { requirePageSessionUser } from '@/lib/server/session';
 import { getUserWithPermissions } from '@/lib/server/permissions';
 import { shouldShowMenuItem } from '@/lib/rbac/utils';
