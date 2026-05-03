@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import {
 import { useApproveRequest, useRejectRequest, useRequests } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
 
 interface Request {
   id: string;
@@ -42,6 +44,7 @@ export default function AdminRequestsPage() {
     rejectRequest.mutate(
       { requestId: rejectTarget, response: rejectReason.trim() || 'Request rejected.' },
       {
+        onSuccess: () => toast.success('Request rejected'),
         onSettled: () => {
           setRejectTarget(null);
           setRejectReason('');
@@ -71,9 +74,7 @@ export default function AdminRequestsPage() {
       </div>
 
       {requests.isError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Failed to load requests. Please refresh the page.
-        </div>
+        <ErrorBanner message="Failed to load requests. Please refresh the page." />
       )}
 
       <div className="grid gap-4">
@@ -109,7 +110,10 @@ export default function AdminRequestsPage() {
               <CardContent className="flex flex-wrap gap-3">
                 <Button
                   onClick={() =>
-                    approveRequest.mutate({ requestId: item.id, response: 'Approved.' })
+                    approveRequest.mutate(
+                      { requestId: item.id, response: 'Approved.' },
+                      { onSuccess: () => toast.success('Request approved') },
+                    )
                   }
                   disabled={item.status !== 'PENDING' || approveRequest.isPending}
                 >

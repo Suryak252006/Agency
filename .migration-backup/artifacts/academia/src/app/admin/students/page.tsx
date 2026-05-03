@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useStudents } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
 
 interface Student {
   id: string;
@@ -25,9 +26,7 @@ export default function AdminStudentsPage() {
       />
 
       {students.isError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Failed to load students. Please refresh the page.
-        </div>
+        <ErrorBanner message="Failed to load students. Please refresh the page." />
       )}
 
       <div className="grid gap-4">

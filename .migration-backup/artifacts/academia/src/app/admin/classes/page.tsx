@@ -14,12 +14,7 @@ import {
 } from '@/components/ui/select';
 import { useApproveLock, useClasses, useExams, useMarks, useRejectLock } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
-
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  SUBMITTED:    { label: 'Submitted',    className: 'bg-blue-100 text-blue-700' },
-  LOCK_PENDING: { label: 'Lock pending', className: 'bg-amber-100 text-amber-700' },
-  LOCKED:       { label: 'Locked',       className: 'bg-green-100 text-green-700' },
-};
+import { STATUS_META } from '@/lib/marks-status';
 
 interface ClassItem {
   id: string;
@@ -77,7 +72,10 @@ export default function AdminClassesPage() {
 
   const handleApprove = () => {
     if (!lockPendingIds.length) { toast.error('No lock-pending marks to approve'); return; }
-    approveLock.mutate({ marksIds: lockPendingIds });
+    approveLock.mutate(
+      { marksIds: lockPendingIds },
+      { onSuccess: () => toast.success('Lock approved — marks are now locked') },
+    );
     setShowRejectForm(false);
   };
 
@@ -86,7 +84,7 @@ export default function AdminClassesPage() {
     if (rejectReason.trim().length < 5) { toast.error('Rejection reason must be at least 5 characters'); return; }
     rejectLock.mutate(
       { marksIds: lockPendingIds, reason: rejectReason.trim() },
-      { onSuccess: () => { setRejectReason(''); setShowRejectForm(false); } }
+      { onSuccess: () => { toast.success('Lock request rejected — marks returned to faculty for editing'); setRejectReason(''); setShowRejectForm(false); } }
     );
   };
 

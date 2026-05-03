@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useCreateRequest, useRequests } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
 
 const MIN_REASON_LENGTH = 10;
 
@@ -68,7 +70,10 @@ export default function FacultyRequestsPage() {
           </div>
           <Button
             onClick={() => {
-              createRequest.mutate({ type: 'EDIT_MARKS', reason: reasonTrimmed });
+              createRequest.mutate(
+                { type: 'EDIT_MARKS', reason: reasonTrimmed },
+                { onSuccess: () => toast.success('Request submitted successfully') },
+              );
               setReason('');
             }}
             disabled={!reasonValid || createRequest.isPending}
@@ -79,9 +84,7 @@ export default function FacultyRequestsPage() {
       </Card>
 
       {requests.isError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Failed to load requests. Please refresh the page.
-        </div>
+        <ErrorBanner message="Failed to load requests. Please refresh the page." />
       )}
 
       <div className="grid gap-4">

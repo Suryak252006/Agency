@@ -147,7 +147,6 @@ export function useRequestLock() {
     mutationFn: (data: { examId: string; classId: string }) =>
       apiClient.post<any>('/api/marks/request-lock', data),
     onSuccess: () => {
-      toast.success('Lock request submitted — awaiting Admin/HOD approval');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to request lock'),
@@ -161,7 +160,6 @@ export function useApproveLock() {
     mutationFn: (data: { marksIds: string[] }) =>
       apiClient.post<any>('/api/marks/approve-lock', data),
     onSuccess: () => {
-      toast.success('Lock approved — marks are now locked');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
@@ -176,7 +174,6 @@ export function useRejectLock() {
     mutationFn: (data: { marksIds: string[]; reason: string }) =>
       apiClient.post<any>('/api/marks/reject-lock', data),
     onSuccess: () => {
-      toast.success('Lock request rejected — marks returned to faculty for editing');
       queryClient.invalidateQueries({ queryKey: queryKeys.marks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
     },
@@ -209,7 +206,6 @@ export function useCreateRequest() {
     mutationFn: (data: { type: string; marksId?: string; reason: string }) =>
       apiClient.post<any>('/api/requests', data),
     onSuccess: () => {
-      toast.success('Request submitted successfully');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create request'),
@@ -222,7 +218,6 @@ export function useApproveRequest() {
     mutationFn: (data: { requestId: string; response?: string }) =>
       apiClient.post<any>(`/api/requests/${data.requestId}/approve`, { response: data.response }),
     onSuccess: () => {
-      toast.success('Request approved');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to approve request'),
@@ -235,7 +230,6 @@ export function useRejectRequest() {
     mutationFn: (data: { requestId: string; response: string }) =>
       apiClient.post<any>(`/api/requests/${data.requestId}/reject`, { response: data.response }),
     onSuccess: () => {
-      toast.success('Request rejected');
       queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
     },
     onError: (error: any) => toast.error(error.message || 'Failed to reject request'),

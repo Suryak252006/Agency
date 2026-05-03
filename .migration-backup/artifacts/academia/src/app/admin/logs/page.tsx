@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLogs } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
 
 interface LogEntry {
   id: string;
@@ -55,9 +56,7 @@ export default function AdminLogsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {logs.isError ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              Failed to load audit logs. Please refresh the page.
-            </div>
+            <ErrorBanner message="Failed to load audit logs. Please refresh the page." />
           ) : logs.isPending ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4">

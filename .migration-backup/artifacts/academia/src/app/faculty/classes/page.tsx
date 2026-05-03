@@ -14,12 +14,7 @@ import {
 } from '@/components/ui/select';
 import { useClassDetails, useClasses, useExams, useMarks, useSaveMark, useRequestLock } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
-
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  SUBMITTED:    { label: 'Submitted',    className: 'bg-blue-100 text-blue-700' },
-  LOCK_PENDING: { label: 'Lock pending', className: 'bg-amber-100 text-amber-700' },
-  LOCKED:       { label: 'Locked',       className: 'bg-green-100 text-green-700' },
-};
+import { STATUS_META } from '@/lib/marks-status';
 
 interface ClassItem {
   id: string;
@@ -121,6 +116,7 @@ export default function FacultyClassesPage() {
     const submittedCount = marksItems.filter((m) => m.status === 'SUBMITTED').length;
     if (!submittedCount) { toast.error('No submitted marks available to request lock'); return; }
     await requestLock.mutateAsync({ examId: selectedExamId, classId: selectedClassId });
+    toast.success('Lock request submitted — awaiting Admin/HOD approval');
   };
 
   const hasSubmitted = marksItems.some((m) => m.status === 'SUBMITTED');
