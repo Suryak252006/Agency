@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext, makeAuthenticatedRequest, BASE_URL } from './helpers';
+import { makeAuthenticatedRequest, BASE_URL, createAdminAContext, createFacultyPhysicsContext, type TestUser } from './helpers';
 import { UserRole } from '@prisma/client';
 
 describe('Custom Features - Access & Expiry', () => {
-  let admin: any;
-  let faculty: any;
+  let admin: TestUser;
+  let faculty: TestUser;
   let feature: any;
   let expiredFeature: any;
 
@@ -20,21 +20,8 @@ describe('Custom Features - Access & Expiry', () => {
   beforeEach(async () => {
     await ensureGlobalSetup();
 
-    admin = await createUserContext(
-      TEST_DATA.users.adminA,
-      'admin_a@test.local',
-      'Admin A',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    faculty = await createUserContext(
-      TEST_DATA.users.facultyPhysics,
-      'fac.phy@test.local',
-      'Faculty Physics',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA
-    );
+    admin   = await createAdminAContext();
+    faculty = await createFacultyPhysicsContext();
 
     // Clean up features from previous test in this file
     await prisma.customFeatureAssignment.deleteMany({

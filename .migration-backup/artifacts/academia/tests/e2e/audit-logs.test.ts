@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext } from './helpers';
-import { UserRole } from '@prisma/client';
+import { createAdminAContext, createFacultyPhysicsContext, type TestUser } from './helpers';
 
 describe('Audit Logs - Compliance & Tracking', () => {
-  let admin: any;
-  let faculty: any;
+  let admin: TestUser;
+  let faculty: TestUser;
 
   beforeAll(async () => {
     await cleanupTestData();
@@ -17,22 +16,8 @@ describe('Audit Logs - Compliance & Tracking', () => {
 
   beforeEach(async () => {
     await ensureGlobalSetup();
-
-    admin = await createUserContext(
-      TEST_DATA.users.adminA,
-      'admin_a@test.local',
-      'Admin A',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    faculty = await createUserContext(
-      TEST_DATA.users.facultyPhysics,
-      'fac.phy@test.local',
-      'Faculty Physics',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA
-    );
+    admin   = await createAdminAContext();
+    faculty = await createFacultyPhysicsContext();
   });
 
   it('Role assignment should create audit log entry (documented expectation)', async () => {
@@ -45,10 +30,22 @@ describe('Audit Logs - Compliance & Tracking', () => {
       },
     }).catch(() => null);
 
+    // The application does not yet auto-create audit logs on role assignment.
+    // Write one explicitly to verify the schema contract (action, schoolId filter).
+    const log = await prisma.auditLog.create({
+      data: {
+        schoolId: TEST_DATA.schools.schoolA,
+        userId: admin.id,
+        action: 'ROLE_ASSIGNED',
+        entity: 'roleAssignment',
+        entityId: faculty.id,
+      },
+    });
     const logs = await prisma.auditLog.findMany({
       where: { schoolId: TEST_DATA.schools.schoolA, action: 'ROLE_ASSIGNED' },
     });
-    expect(logs.length >= 0).toBe(true);
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    expect(logs.some((l) => l.id === log.id)).toBe(true);
   });
 
   it('Permission change should create audit log (documented expectation)', async () => {
@@ -103,10 +100,21 @@ describe('Audit Logs - Compliance & Tracking', () => {
   });
 
   it('Failed access attempt logged (documented expectation)', async () => {
+    // Write an explicit PERMISSION_DENIED log to verify the schema contract.
+    const log = await prisma.auditLog.create({
+      data: {
+        schoolId: TEST_DATA.schools.schoolA,
+        userId: admin.id,
+        action: 'PERMISSION_DENIED',
+        entity: 'access',
+        entityId: faculty.id,
+      },
+    });
     const logs = await prisma.auditLog.findMany({
       where: { schoolId: TEST_DATA.schools.schoolA, action: 'PERMISSION_DENIED' },
     });
-    expect(logs.length >= 0).toBe(true);
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    expect(logs.some((l) => l.id === log.id)).toBe(true);
   });
 
   it('Marks creation should use SUBMITTED status (no submittedAt field)', async () => {

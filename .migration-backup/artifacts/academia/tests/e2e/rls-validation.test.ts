@@ -1,12 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext, makeAuthenticatedRequest } from './helpers';
-import { UserRole } from '@prisma/client';
+import {
+  makeAuthenticatedRequest,
+  createAdminAContext,
+  createAdminBContext,
+  createFacultyPhysicsContext,
+  ensureSchoolBFaculty,
+  getSchoolBFacultyId,
+  type TestUser,
+} from './helpers';
 
 describe('RLS Validation - Database Layer Security', () => {
-  let adminA: any;
-  let adminB: any;
-  let facultyA: any;
+  let adminA: TestUser;
+  let adminB: TestUser;
+  let facultyA: TestUser;
   let classInSchoolA: any;
   let classInSchoolB: any;
 
@@ -21,30 +28,9 @@ describe('RLS Validation - Database Layer Security', () => {
   beforeEach(async () => {
     await ensureGlobalSetup();
 
-    adminA = await createUserContext(
-      TEST_DATA.users.adminA,
-      'admin_a@test.local',
-      'Admin A',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    adminB = await createUserContext(
-      TEST_DATA.users.adminB,
-      'admin_b@test.local',
-      'Admin B',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolB
-    );
-
-    facultyA = await createUserContext(
-      TEST_DATA.users.facultyPhysics,
-      'fac.phy@test.local',
-      'Faculty Physics',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA,
-      TEST_DATA.departments.physics
-    );
+    adminA   = await createAdminAContext();
+    adminB   = await createAdminBContext();
+    facultyA = await createFacultyPhysicsContext(TEST_DATA.departments.physics);
 
     await prisma.class.deleteMany({ where: { id: { in: ['cls_rls_a', 'cls_rls_b'] } } });
     await ensureSchoolBFaculty();
@@ -62,7 +48,7 @@ describe('RLS Validation - Database Layer Security', () => {
       },
     });
 
-    const facBId = await getSchoolBFacultyId();
+    const facBId = getSchoolBFacultyId();
     classInSchoolB = await prisma.class.create({
       data: {
         id: 'cls_rls_b',
@@ -134,28 +120,3 @@ describe('RLS Validation - Database Layer Security', () => {
     expect(overlap).toHaveLength(0);
   });
 });
-
-async function ensureSchoolBFaculty(): Promise<void> {
-  await prisma.user.upsert({
-    where: { id: 'usr_fac_b_rls' },
-    create: {
-      id: 'usr_fac_b_rls',
-      email: 'fac_b_rls@test.local',
-      name: 'Faculty B RLS',
-      role: 'FACULTY',
-      schoolId: TEST_DATA.schools.schoolB,
-      password: '$2a$01$stub',
-    },
-    update: {},
-  });
-  await prisma.faculty.upsert({
-    where: { userId: 'usr_fac_b_rls' },
-    create: { id: 'fac_b_rls', userId: 'usr_fac_b_rls', schoolId: TEST_DATA.schools.schoolB },
-    update: {},
-  });
-}
-
-async function getSchoolBFacultyId(): Promise<string> {
-  const fac = await prisma.faculty.findUnique({ where: { userId: 'usr_fac_b_rls' } });
-  return fac!.id;
-}

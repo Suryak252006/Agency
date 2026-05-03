@@ -16,10 +16,12 @@ export const TEST_DATA = {
     hodMath:        'usr_hod_math_test',
     facultyPhysics: 'usr_fac_phy_test',
     facultyMath:    'usr_fac_math_test',
+    facultyB:       'usr_fac_b_test',   // School B secondary faculty (tenant/rls tests)
   },
   faculty: {
     physics: 'fac_phy_test',
     math:    'fac_math_test',
+    b:       'fac_b_test',              // School B secondary faculty record
   },
   departments: {
     physics:     'dept_phy_test',
@@ -34,6 +36,19 @@ export const TEST_DATA = {
 
 export const TEST_SCHOOL_IDS = [TEST_DATA.schools.schoolA, TEST_DATA.schools.schoolB];
 export const TEST_PASSWORD_HASH = hashSync('TestPass123!', 1);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint 2 academic structure cleanup — exported so individual test files can
+// call it in their own beforeAll/afterAll without redefining the function.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function cleanupAcademicStructure(): Promise<void> {
+  const ids = TEST_SCHOOL_IDS;
+  await prisma.term.deleteMany({ where: { schoolId: { in: ids } } });
+  await prisma.academicYear.deleteMany({ where: { schoolId: { in: ids } } });
+  await prisma.grade.deleteMany({ where: { schoolId: { in: ids } } });
+  await prisma.section.deleteMany({ where: { schoolId: { in: ids } } });
+  await prisma.subject.deleteMany({ where: { schoolId: { in: ids } } });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cleanup — correct FK deletion order so no constraint errors
@@ -60,6 +75,9 @@ export async function cleanupTestData(): Promise<void> {
   // 4. Audit & requests
   await prisma.auditLog.deleteMany({ where: { schoolId: { in: TEST_SCHOOL_IDS } } });
   await prisma.request.deleteMany({ where: { schoolId: { in: TEST_SCHOOL_IDS } } });
+
+  // 4a. Sprint 2 academic structure (Term before AcademicYear; Grade/Section/Subject independent)
+  await cleanupAcademicStructure();
 
   // 5. Faculty links → Faculty → Department (SetNull headId before dept delete)
   await prisma.facultyDepartment.deleteMany({ where: { faculty: { schoolId: { in: TEST_SCHOOL_IDS } } } });

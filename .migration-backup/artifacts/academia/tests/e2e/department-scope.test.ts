@@ -1,13 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext, createTestDepartment, makeAuthenticatedRequest } from './helpers';
-import { UserRole } from '@prisma/client';
+import {
+  createTestDepartment,
+  makeAuthenticatedRequest,
+  createHodPhysicsContext,
+  createHodMathContext,
+  createFacultyPhysicsContext,
+  createFacultyMathContext,
+  type TestUser,
+} from './helpers';
 
 describe('Department Scope - HOD & Faculty Isolation', () => {
-  let hodPhysics: any;
-  let hodMath: any;
-  let facultyPhysics: any;
-  let facultyMath: any;
+  let hodPhysics: TestUser;
+  let hodMath: TestUser;
+  let facultyPhysics: TestUser;
+  let facultyMath: TestUser;
   let physicsClass: any;
   let mathClass: any;
 
@@ -35,41 +42,10 @@ describe('Department Scope - HOD & Faculty Isolation', () => {
       TEST_DATA.users.hodMath
     );
 
-    hodPhysics = await createUserContext(
-      TEST_DATA.users.hodPhysics,
-      'hod.phy@test.local',
-      'HOD Physics',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA,
-      TEST_DATA.departments.physics
-    );
-
-    hodMath = await createUserContext(
-      TEST_DATA.users.hodMath,
-      'hod.math@test.local',
-      'HOD Math',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA,
-      TEST_DATA.departments.mathematics
-    );
-
-    facultyPhysics = await createUserContext(
-      TEST_DATA.users.facultyPhysics,
-      'fac.phy@test.local',
-      'Faculty Physics',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA,
-      TEST_DATA.departments.physics
-    );
-
-    facultyMath = await createUserContext(
-      TEST_DATA.users.facultyMath,
-      'fac.math@test.local',
-      'Faculty Math',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA,
-      TEST_DATA.departments.mathematics
-    );
+    hodPhysics     = await createHodPhysicsContext();
+    hodMath        = await createHodMathContext();
+    facultyPhysics = await createFacultyPhysicsContext(TEST_DATA.departments.physics);
+    facultyMath    = await createFacultyMathContext(TEST_DATA.departments.mathematics);
 
     // Clean up class records from any prior test in this file
     await prisma.class.deleteMany({ where: { id: { in: ['cls_phy_10a', 'cls_math_10b'] } } });

@@ -1,12 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext, createTestRole, makeAuthenticatedRequest, BASE_URL } from './helpers';
-import { UserRole } from '@prisma/client';
+import {
+  createTestRole,
+  makeAuthenticatedRequest,
+  createSuperAdminContext,
+  createAdminAContext,
+  createFacultyPhysicsContext,
+  type TestUser,
+} from './helpers';
 
 describe('Role Permissions - Access Control', () => {
-  let superAdmin: any;
-  let admin: any;
-  let faculty: any;
+  let superAdmin: TestUser;
+  let admin: TestUser;
+  let faculty: TestUser;
 
   beforeAll(async () => {
     await cleanupTestData();
@@ -19,76 +25,34 @@ describe('Role Permissions - Access Control', () => {
   beforeEach(async () => {
     await ensureGlobalSetup();
 
-    superAdmin = await createUserContext(
-      TEST_DATA.users.superAdmin,
-      'superadmin@test.local',
-      'Super Admin',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    admin = await createUserContext(
-      TEST_DATA.users.adminA,
-      'admin_a@test.local',
-      'Admin A',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    faculty = await createUserContext(
-      TEST_DATA.users.facultyPhysics,
-      'fac.phy@test.local',
-      'Faculty Physics',
-      UserRole.FACULTY,
-      TEST_DATA.schools.schoolA
-    );
+    superAdmin = await createSuperAdminContext();
+    admin      = await createAdminAContext();
+    faculty    = await createFacultyPhysicsContext();
 
     await createTestRole(TEST_DATA.roles.admin,   TEST_DATA.schools.schoolA, 'Admin Role',   ['admin:all']);
     await createTestRole(TEST_DATA.roles.faculty, TEST_DATA.schools.schoolA, 'Faculty Role', ['faculty:view']);
   });
 
   it('Faculty should NOT access admin-only APIs (returns 401/403/404)', async () => {
-    const res = await fetch(`${BASE_URL}/api/admin/users`, {
-      headers: { Cookie: `app_session=${faculty.jwt}` },
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('GET', '/api/admin/users', faculty.jwt);
     expect([401, 403, 404]).toContain(res.status);
   });
 
   it('Faculty should NOT create RBAC roles (returns 401/403/400)', async () => {
-    const res = await fetch(`${BASE_URL}/api/rbac/roles`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: `app_session=${faculty.jwt}`,
-      },
-      body: JSON.stringify({ name: 'Fake Role', permissions: ['admin:*'] }),
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('POST', '/api/rbac/roles', faculty.jwt, {
+      name: 'Fake Role',
+      permissions: ['admin:*'],
+    });
     expect([401, 403, 400]).toContain(res.status);
   });
 
   it('Admin can list classes via API', async () => {
-    const res = await fetch(`${BASE_URL}/api/classes`, {
-      headers: { Cookie: `app_session=${admin.jwt}` },
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('GET', '/api/classes', admin.jwt);
     expect([200, 400]).toContain(res.status);
   });
 
   it('Faculty can list their classes via API', async () => {
-    const res = await fetch(`${BASE_URL}/api/classes`, {
-      headers: { Cookie: `app_session=${faculty.jwt}` },
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('GET', '/api/classes', faculty.jwt);
     expect([200, 400]).toContain(res.status);
   });
 
@@ -137,27 +101,14 @@ describe('Role Permissions - Access Control', () => {
       },
     });
 
-    const res = await fetch(`${BASE_URL}/api/marks/approve-lock`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: `app_session=${faculty.jwt}`,
-      },
-      body: JSON.stringify({ marksIds: [marks.id] }),
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('POST', '/api/marks/approve-lock', faculty.jwt, {
+      marksIds: [marks.id],
+    });
     expect([401, 403, 400]).toContain(res.status);
   });
 
   it('Super Admin has broad API access (role-based, no 403)', async () => {
-    const res = await fetch(`${BASE_URL}/api/rbac/roles`, {
-      headers: { Cookie: `app_session=${superAdmin.jwt}` },
-    })
-      .then((r) => ({ status: r.status }))
-      .catch(() => ({ status: 0 }));
-
+    const res = await makeAuthenticatedRequest('GET', '/api/rbac/roles', superAdmin.jwt);
     expect([200, 400, 404]).toContain(res.status);
   });
 });

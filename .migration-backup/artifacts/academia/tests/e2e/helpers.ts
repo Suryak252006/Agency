@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { UserRole, type AcademicYear } from '@prisma/client';
 import { createAppSessionCookie, type AppSessionRole } from '@/lib/auth/session-cookie';
 import { prisma, TEST_DATA, TEST_PASSWORD_HASH } from './setup';
 
@@ -174,5 +174,154 @@ export async function assignRoleToUser(
     where: { userId_roleId_schoolId_departmentId: { userId, roleId, schoolId, departmentId: null as any } },
     create: { userId, roleId, schoolId, assignedBy },
     update: {},
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pre-built user context factories for the known global test users.
+// Eliminates the repeated 5-arg createUserContext(...) calls across test files.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function createSuperAdminContext(): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.superAdmin,
+    'superadmin@test.local',
+    'Super Admin',
+    UserRole.ADMIN,
+    TEST_DATA.schools.schoolA,
+  );
+}
+
+export function createAdminAContext(): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.adminA,
+    'admin_a@test.local',
+    'Admin A',
+    UserRole.ADMIN,
+    TEST_DATA.schools.schoolA,
+  );
+}
+
+export function createAdminBContext(): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.adminB,
+    'admin_b@test.local',
+    'Admin B',
+    UserRole.ADMIN,
+    TEST_DATA.schools.schoolB,
+  );
+}
+
+/** departmentId is optional — omit for a general faculty context, pass for dept-scoped tests */
+export function createFacultyPhysicsContext(departmentId?: string): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.facultyPhysics,
+    'fac.phy@test.local',
+    'Faculty Physics',
+    UserRole.FACULTY,
+    TEST_DATA.schools.schoolA,
+    departmentId,
+  );
+}
+
+export function createFacultyMathContext(departmentId?: string): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.facultyMath,
+    'fac.math@test.local',
+    'Faculty Math',
+    UserRole.FACULTY,
+    TEST_DATA.schools.schoolA,
+    departmentId,
+  );
+}
+
+export function createHodPhysicsContext(): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.hodPhysics,
+    'hod.phy@test.local',
+    'HOD Physics',
+    UserRole.ADMIN,
+    TEST_DATA.schools.schoolA,
+    TEST_DATA.departments.physics,
+  );
+}
+
+export function createHodMathContext(): Promise<TestUser> {
+  return createUserContext(
+    TEST_DATA.users.hodMath,
+    'hod.math@test.local',
+    'HOD Math',
+    UserRole.ADMIN,
+    TEST_DATA.schools.schoolA,
+    TEST_DATA.departments.mathematics,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// School B secondary faculty — canonical fixture shared by tenant-isolation
+// and rls-validation tests. Uses TEST_DATA.users.facultyB / TEST_DATA.faculty.b
+// so cleanup via cleanupTestData() (schoolId filter) handles it automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function ensureSchoolBFaculty(): Promise<void> {
+  const userId    = TEST_DATA.users.facultyB;
+  const facultyId = TEST_DATA.faculty.b;
+
+  await prisma.user.upsert({
+    where: { id: userId },
+    create: {
+      id: userId,
+      email: 'fac_b@test.local',
+      name: 'Faculty B',
+      role: UserRole.FACULTY,
+      schoolId: TEST_DATA.schools.schoolB,
+      password: TEST_PASSWORD_HASH,
+    },
+    update: {},
+  });
+
+  await prisma.faculty.deleteMany({ where: { id: facultyId, NOT: { userId } } });
+  await prisma.faculty.deleteMany({ where: { userId, NOT: { id: facultyId } } });
+
+  await prisma.faculty.upsert({
+    where: { userId },
+    create: { id: facultyId, userId, schoolId: TEST_DATA.schools.schoolB },
+    update: {},
+  });
+}
+
+/**
+ * Returns the Faculty.id for the canonical School B secondary faculty.
+ * Synchronous — the ID is a constant in TEST_DATA; no DB query needed.
+ * Call ensureSchoolBFaculty() first to guarantee the record exists.
+ */
+export function getSchoolBFacultyId(): string {
+  return TEST_DATA.faculty.b;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academic year factory — eliminates 9+ identical prisma.academicYear.create
+// calls in academic-structure.test.ts. Defaults to a standard unlocked 2024-25.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function createTestAcademicYear(
+  schoolId: string,
+  overrides?: {
+    name?: string;
+    startDate?: Date;
+    endDate?: Date;
+    isCurrent?: boolean;
+    isLocked?: boolean;
+  }
+): Promise<AcademicYear> {
+  return prisma.academicYear.create({
+    data: {
+      schoolId,
+      name:      overrides?.name      ?? '2024-25',
+      startDate: overrides?.startDate ?? new Date('2024-04-01'),
+      endDate:   overrides?.endDate   ?? new Date('2025-03-31'),
+      isCurrent: overrides?.isCurrent ?? false,
+      isLocked:  overrides?.isLocked  ?? false,
+    },
   });
 }

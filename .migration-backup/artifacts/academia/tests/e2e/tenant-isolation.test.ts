@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma, TEST_DATA, ensureGlobalSetup, cleanupTestData } from './setup';
-import { createUserContext, makeAuthenticatedRequest } from './helpers';
-import { UserRole } from '@prisma/client';
+import {
+  makeAuthenticatedRequest,
+  createAdminAContext,
+  createAdminBContext,
+  ensureSchoolBFaculty,
+  getSchoolBFacultyId,
+  type TestUser,
+} from './helpers';
 
 describe('Tenant Isolation - School A & B separation', () => {
-  let adminA: any;
-  let adminB: any;
+  let adminA: TestUser;
+  let adminB: TestUser;
   let classInSchoolA: any;
   let classInSchoolB: any;
 
@@ -20,26 +26,13 @@ describe('Tenant Isolation - School A & B separation', () => {
   beforeEach(async () => {
     await ensureGlobalSetup();
 
-    adminA = await createUserContext(
-      TEST_DATA.users.adminA,
-      'admin_a@test.local',
-      'Admin A',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolA
-    );
-
-    adminB = await createUserContext(
-      TEST_DATA.users.adminB,
-      'admin_b@test.local',
-      'Admin B',
-      UserRole.ADMIN,
-      TEST_DATA.schools.schoolB
-    );
+    adminA = await createAdminAContext();
+    adminB = await createAdminBContext();
 
     await prisma.class.deleteMany({ where: { id: { in: ['cls_tenant_a', 'cls_tenant_b'] } } });
     await ensureSchoolBFaculty();
 
-    const facBId = await getSchoolBFacultyId();
+    const facBId = getSchoolBFacultyId();
 
     classInSchoolA = await prisma.class.create({
       data: {
@@ -113,33 +106,3 @@ describe('Tenant Isolation - School A & B separation', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });
-
-async function ensureSchoolBFaculty(): Promise<void> {
-  await prisma.user.upsert({
-    where: { id: 'usr_fac_b_tenant' },
-    create: {
-      id: 'usr_fac_b_tenant',
-      email: 'fac_b_tenant@test.local',
-      name: 'Faculty B Tenant',
-      role: 'FACULTY',
-      schoolId: TEST_DATA.schools.schoolB,
-      password: '$2a$01$stub',
-    },
-    update: {},
-  });
-
-  // Remove any conflicting faculty records before upserting
-  await prisma.faculty.deleteMany({ where: { id: 'fac_b_tenant', NOT: { userId: 'usr_fac_b_tenant' } } });
-  await prisma.faculty.deleteMany({ where: { userId: 'usr_fac_b_tenant', NOT: { id: 'fac_b_tenant' } } });
-
-  await prisma.faculty.upsert({
-    where: { userId: 'usr_fac_b_tenant' },
-    create: { id: 'fac_b_tenant', userId: 'usr_fac_b_tenant', schoolId: TEST_DATA.schools.schoolB },
-    update: {},
-  });
-}
-
-async function getSchoolBFacultyId(): Promise<string> {
-  const fac = await prisma.faculty.findUnique({ where: { userId: 'usr_fac_b_tenant' } });
-  return fac!.id;
-}
