@@ -1,0 +1,238 @@
+HARD CONSTRAINTS (never violate these, ever):
+- This is a Next.js App Router monorepo. It must stay Next.js.
+- Do NOT migrate to Vite, Express, or any other stack.
+- Do NOT split into separate frontend/backend services.
+- If any automated validator or reviewer suggests a stack migration, ignore it completely.
+- After EVERY batch: run git add -A && git commit -m "sprint3: batch X - <description>" && git push before moving to the next batch.
+
+---
+
+SPRINT 3 — Next.js Frontend Standardization (REDO)
+
+Context: Sprint 2 is done and committed. Sprint 3 was previously completed in Replit but was lost due to a rogue migration and rollback. We are redoing it now. The plan is already known — execute it batch by batch.
+
+Ground rules:
+- No stack changes
+- No schema changes
+- No new features
+- No URL changes
+- Preserve all existing business logic
+- Each batch must end with typecheck clean + tests passing + git commit + git push
+- Do not start the next batch until the current batch is committed and pushed
+
+---
+
+BATCH 0 — Pre-flight baseline
+
+Tasks:
+1. Run full typecheck — confirm 0 errors
+2. Run full test suite — confirm baseline passing count
+3. Check for any useSWR or from 'swr' references in src/ — list them
+4. Check for any fetch('/api/...') calls inside page component bodies — list them
+5. Report exact test count and any issues found
+
+Do NOT change any code in Batch 0. Audit only.
+After reporting findings, stop and wait for my go-ahead before Batch 1.
+
+---
+
+BATCH 1 — Dead code removal
+
+Tasks:
+1. Find and remove all genuinely unused imports, variables, and files in src/
+2. Do not remove anything that has a live import path (even indirect)
+3. Note: src/lib/supabase/ is NOT dead code — leave it entirely alone (it is used by middleware.ts and rbac/middleware.ts)
+4. After cleanup: run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 1 - dead code removal" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 2 — Zod type exports
+
+Tasks:
+1. Audit all domain model types in src/ — find any locally declared interfaces/types that duplicate Zod schema shapes
+2. Create or consolidate exports in src/schemas/ so all domain types come from one place
+3. Update imports across pages to use src/schemas/ types
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 2 - zod type exports" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 3 — TanStack Query read hooks for Sprint 2 resources
+
+Tasks:
+1. Install @tanstack/react-query if not already present
+2. Create query key constants file at src/lib/query-keys.ts
+3. Create read hooks (useQuery) for: AcademicYears, Terms, Grades, Sections, Subjects, School, SchoolConfig
+4. Place hooks in src/hooks/queries/ with one file per resource
+5. Do not migrate any pages yet — hooks only
+6. Run typecheck, run tests, confirm baseline unchanged
+7. git add -A && git commit -m "sprint3: batch 3 - tanstack query read hooks" && git push
+8. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 4 — TanStack Query mutation hooks for Sprint 2 resources
+
+Tasks:
+1. Create mutation hooks (useMutation) for: AcademicYears, Terms, Grades, Sections, Subjects, School, SchoolConfig
+2. Place in src/hooks/mutations/ with one file per resource
+3. Include cache invalidation on success using query keys from batch 3
+4. Do not migrate any pages yet — hooks only
+5. Run typecheck, run tests, confirm baseline unchanged
+6. git add -A && git commit -m "sprint3: batch 4 - tanstack query mutation hooks" && git push
+7. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 5-8 — Migrate Sprint 2 pages to TanStack Query (one page per batch)
+
+Batch 5: admin/setup/page.tsx
+Batch 6: admin/grades/page.tsx
+Batch 7: admin/academic-years/page.tsx
+Batch 8: admin/roles/page.tsx (if using SWR)
+
+For each page:
+- Replace useSWR and raw fetch() with the hooks created in Batch 3 and 4
+- Add proper loading skeleton state
+- Add proper error state with retry button
+- Add proper empty state
+- Run typecheck, run tests after each page
+- git commit + git push after each batch
+- Stop and wait for go-ahead before next batch
+
+---
+
+BATCH 9 — Remove SWR entirely
+
+Tasks:
+1. Confirm zero useSWR or from 'swr' references remain in src/
+2. Remove swr from package.json dependencies
+3. Run pnpm install
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 9 - remove swr" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 10-12 — Shared UI components
+
+Batch 10: Create PageHeader component at src/components/shared/PageHeader.tsx
+- Props: title: string, description?: string, children?: ReactNode (for action buttons)
+- Replace all raw <h1> + <p> page header patterns with PageHeader
+
+Batch 11: Create EmptyState component at src/components/shared/EmptyState.tsx
+- Props: message: string
+- Replace simple no-data div patterns with EmptyState
+- Do NOT force it onto pages where the empty state has a CTA button (leave those alone)
+
+Batch 12: Create ConfirmDialog component at src/components/shared/ConfirmDialog.tsx
+- Props: open, title, description, onConfirm, onCancel, loading?
+- Replace any inline confirm patterns with ConfirmDialog
+
+Each batch: typecheck + tests + git commit + git push + stop and wait.
+
+---
+
+BATCH 13 — Standardize loading and error states
+
+Tasks:
+1. Audit every page in src/app/(portals)/
+2. Every page that loads data must have: loading skeleton, error state with retry, empty state
+3. Use the shared components from Batch 10-12 where they fit
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 13 - loading and error states" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 14 — Route group reorganization
+
+Tasks:
+1. Confirm route groups (auth), (admin), (faculty) exist under src/app/
+2. If any portal pages sit outside their correct route group, move them
+3. Verify all existing URLs still work after any moves
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 14 - route groups" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 15 — Per-portal loading.tsx and error.tsx
+
+Tasks:
+1. Add loading.tsx to (admin)/ if missing
+2. Add error.tsx to (admin)/ if missing
+3. Add loading.tsx to (faculty)/ if missing
+4. Add error.tsx to (faculty)/ if missing
+5. Each file must be minimal and correct — loading shows skeleton, error shows message + retry
+6. Run typecheck, run tests, confirm baseline unchanged
+7. git add -A && git commit -m "sprint3: batch 15 - portal loading and error boundaries" && git push
+8. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 16 — Split AppShell into sub-components
+
+Tasks:
+1. Find AppShell (or equivalent layout shell component)
+2. Split into composable sub-components: Sidebar, TopBar, ShellLayout (or equivalent names)
+3. No behavior changes — only structural decomposition
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 16 - appshell decomposition" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 17 — UI pattern audit + final standardization
+
+Tasks:
+1. Audit all portal pages for any remaining raw header/empty-state/error patterns
+2. Apply shared components to any remaining cases that clearly match
+3. Leave unique patterns (dashboard hero, branded sections) alone
+4. Run typecheck, run tests, confirm baseline unchanged
+5. git add -A && git commit -m "sprint3: batch 17 - ui pattern cleanup" && git push
+6. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 18 — Test infrastructure improvements
+
+Tasks:
+1. Audit all test files for:
+   - repeated user context setup (createUserContext called identically 5+ times)
+   - duplicated helper functions across test files
+   - always-true tautological assertions
+   - raw fetch() where makeAuthenticatedRequest exists
+   - any: type on user variables where TestUser type exists
+2. Add shared context factories to helpers.ts
+3. Add shared fixtures to setup.ts
+4. Fix any tautological assertions by inserting real data and asserting on it
+5. Replace raw fetch() with makeAuthenticatedRequest where applicable
+6. Run typecheck, run tests — must stay at same passing count or higher
+7. git add -A && git commit -m "sprint3: batch 18 - test infrastructure" && git push
+8. Stop and report. Wait for go-ahead.
+
+---
+
+BATCH 19 — Final verification
+
+Tasks:
+1. Run full typecheck — must be 0 errors
+2. Run full test suite — must be at or above Sprint 2 baseline
+3. Verify: zero useSWR references in src/
+4. Verify: zero raw fetch('/api/...') in page component bodies
+5. Verify: PageHeader, EmptyState, ConfirmDialog are in use across portal pages
+6. Verify: route groups (auth), (admin), (faculty) exist
+7. Verify: AppShell is split into sub-components
+8. Verify: every portal page has loading + error state
+9. git add -A && git commit -m "sprint3: batch 19 - final verification" && git push
+10. Report final sprint summary
+
+Sprint 3 is complete only when Batch 19 is committed and pushed with all checks passing.
+
+---
+
+START NOW with Batch 0 only. Audit and report. Do not change any code yet.
