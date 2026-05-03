@@ -3,6 +3,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import type {
+  CreateAcademicYear,
+  UpdateAcademicYear,
+  CreateGrade,
+  CreateSection,
+  CreateSubject,
+  UpdateSchool,
+  UpdateSchoolConfig,
+} from '@/schemas';
 
 /**
  * Query key factories
@@ -412,5 +421,181 @@ export function useSchoolConfig() {
     queryKey: queryKeys.school.config(),
     queryFn: () => apiClient.get<any>('/api/v1/school/config'),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academic Year mutations (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useCreateAcademicYear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateAcademicYear) =>
+      apiClient.post<any>('/api/v1/academic-years', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to create academic year'),
+  });
+}
+
+export function useUpdateAcademicYear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & UpdateAcademicYear) =>
+      apiClient.patch<any>(`/api/v1/academic-years/${id}`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to update academic year'),
+  });
+}
+
+export function useDeleteAcademicYear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/v1/academic-years/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to delete academic year'),
+  });
+}
+
+export function useSetCurrentAcademicYear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.post<any>(`/api/v1/academic-years/${id}/set-current`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to set current year'),
+  });
+}
+
+export function useLockAcademicYear() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.post<any>(`/api/v1/academic-years/${id}/lock`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to lock academic year'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grade mutations (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useCreateGrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateGrade) =>
+      apiClient.post<any>('/api/v1/grades', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to create grade'),
+  });
+}
+
+export function useDeleteGrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/v1/grades/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to delete grade'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section mutations (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useCreateSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateSection) =>
+      apiClient.post<any>('/api/v1/sections', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sections.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to create section'),
+  });
+}
+
+export function useDeleteSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/v1/sections/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sections.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to delete section'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subject mutations (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useCreateSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateSubject) =>
+      apiClient.post<any>('/api/v1/subjects', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to create subject'),
+  });
+}
+
+export function useDeleteSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/v1/subjects/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.subjects.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to delete subject'),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// School mutations (Sprint 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useUpdateSchool() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateSchool) =>
+      apiClient.patch<any>('/api/v1/school', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.school.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to update school'),
+  });
+}
+
+export function useUpdateSchoolConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateSchoolConfig) =>
+      apiClient.patch<any>('/api/v1/school/config', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.school.all });
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to update school configuration'),
   });
 }

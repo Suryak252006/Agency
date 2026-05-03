@@ -66,6 +66,25 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
+  async patch<T>(
+    endpoint: string,
+    body?: any,
+    options?: RequestInit
+  ): Promise<T> {
+    const response = await fetch(endpoint, {
+      ...options,
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
   async delete<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const response = await fetch(endpoint, {
       ...options,
