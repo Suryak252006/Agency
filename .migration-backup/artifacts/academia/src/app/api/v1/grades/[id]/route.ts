@@ -33,7 +33,7 @@ export async function PATCH(
 ) {
   const requestId = generateRequestId();
   try {
-    const user = await requireSessionUser('admin');
+    const user = await requireSessionUser({ roles: ['admin'] });
     const tdb = tenantDb(user.schoolId);
     const { id } = await params;
     const body = await request.json();
@@ -65,7 +65,7 @@ export async function DELETE(
 ) {
   const requestId = generateRequestId();
   try {
-    const user = await requireSessionUser('admin');
+    const user = await requireSessionUser({ roles: ['admin'] });
     const tdb = tenantDb(user.schoolId);
     const { id } = await params;
 

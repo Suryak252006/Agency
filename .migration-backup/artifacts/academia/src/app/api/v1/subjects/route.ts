@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
   try {
-    const user = await requireSessionUser('admin');
+    const user = await requireSessionUser({ roles: ['admin'] });
     const tdb = tenantDb(user.schoolId);
     const body = await request.json();
     const data = CreateSubjectSchema.parse(body);

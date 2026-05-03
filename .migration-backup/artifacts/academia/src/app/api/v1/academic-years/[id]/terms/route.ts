@@ -38,7 +38,7 @@ export async function POST(
 ) {
   const requestId = generateRequestId();
   try {
-    const user = await requireSessionUser('admin');
+    const user = await requireSessionUser({ roles: ['admin'] });
     const tdb = tenantDb(user.schoolId);
     const { id: academicYearId } = await params;
     const body = await request.json();

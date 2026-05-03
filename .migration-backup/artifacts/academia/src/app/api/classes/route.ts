@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
 
   try {
-    const user = await requireSessionUser();
+    const user = await requireSessionUser({ roles: ['admin', 'faculty'] });
     const tdb = tenantDb(user.schoolId);
     const { searchParams } = new URL(request.url);
     const classId = searchParams.get('classId') ?? undefined;
