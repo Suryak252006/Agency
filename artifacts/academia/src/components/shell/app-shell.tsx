@@ -1,3 +1,5 @@
+'use client';
+
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
 import type { AppShellProps, AppShellNavItem } from './types';
