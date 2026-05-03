@@ -2,7 +2,7 @@ kind = "web"
 previewPath = "/"
 title = "Academia"
 version = "1.0.0"
-id = "kL3mX9nPqR7sT2uWvYzAb"
+id = "artifacts/academia"
 
 [[services]]
 localPort = 3000
@@ -27,5 +27,5 @@ NODE_ENV = "production"
 args = ["pnpm", "--filter", "@workspace/academia", "run", "start"]
 
 [services.production.run.env]
-PORT = "3000"
 NODE_ENV = "production"
+PORT = "3000"

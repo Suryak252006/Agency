@@ -18,8 +18,8 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          // Clickjacking protection — production only (dev preview is served in an iframe)
-          ...(isProd ? [{ key: 'X-Frame-Options', value: 'DENY' }] : []),
+          // Clickjacking protection (superseded by CSP frame-ancestors but kept for older browsers)
+          { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -45,8 +45,8 @@ const nextConfig = {
               "font-src 'self'",
               // API calls: self + Supabase
               "connect-src 'self' https://*.supabase.co",
-              // No frames allowed in production; dev preview runs in an iframe
-              ...(isProd ? ["frame-ancestors 'none'"] : []),
+              // No frames allowed (stronger than X-Frame-Options)
+              "frame-ancestors 'none'",
               // Form submissions only to self
               "form-action 'self'",
               // No plugins

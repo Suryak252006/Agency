@@ -3,7 +3,7 @@
 
 type AppRoutes = "/" | "/admin" | "/admin/academic-years" | "/admin/classes" | "/admin/grades" | "/admin/logs" | "/admin/requests" | "/admin/roles" | "/admin/setup" | "/admin/students" | "/auth/login" | "/faculty" | "/faculty/classes" | "/faculty/requests"
 type AppRouteHandlerRoutes = "/api/auth/login" | "/api/auth/logout" | "/api/classes" | "/api/classes/[id]" | "/api/exams" | "/api/health" | "/api/logs" | "/api/marks" | "/api/marks/[id]/history" | "/api/marks/accept" | "/api/marks/approve" | "/api/marks/approve-lock" | "/api/marks/lock" | "/api/marks/reject-lock" | "/api/marks/request-lock" | "/api/marks/submit" | "/api/rbac/custom-features" | "/api/rbac/custom-features/assign" | "/api/rbac/roles" | "/api/requests" | "/api/requests/[id]/approve" | "/api/requests/[id]/reject" | "/api/students" | "/api/v1/academic-years" | "/api/v1/academic-years/[id]" | "/api/v1/academic-years/[id]/lock" | "/api/v1/academic-years/[id]/set-current" | "/api/v1/academic-years/[id]/terms" | "/api/v1/academic-years/[id]/terms/[termId]" | "/api/v1/audit-logs" | "/api/v1/classes" | "/api/v1/classes/[id]" | "/api/v1/classes/[id]/students" | "/api/v1/custom-features" | "/api/v1/exams" | "/api/v1/grades" | "/api/v1/grades/[id]" | "/api/v1/marks" | "/api/v1/marks/status" | "/api/v1/marks/submissions" | "/api/v1/requests" | "/api/v1/requests/[id]" | "/api/v1/roles" | "/api/v1/school" | "/api/v1/school/config" | "/api/v1/sections" | "/api/v1/sections/[id]" | "/api/v1/subjects" | "/api/v1/subjects/[id]"
-type PageRoutes = "/not-found"
+type PageRoutes = never
 type LayoutRoutes = "/" | "/admin" | "/faculty"
 type RedirectRoutes = never
 type RewriteRoutes = never
@@ -74,7 +74,6 @@ interface ParamMap {
   "/faculty": {}
   "/faculty/classes": {}
   "/faculty/requests": {}
-  "/not-found": {}
 }
 
 
