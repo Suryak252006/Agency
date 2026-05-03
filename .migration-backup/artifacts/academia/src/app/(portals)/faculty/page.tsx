@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '@/components/page-header';
 
 export default function FacultyDashboardPage() {
   const router = useRouter();
@@ -27,14 +28,12 @@ export default function FacultyDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">Faculty</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Your classes</h1>
-          <p className="mt-2 text-sm text-slate-600">Continue entering marks, reviewing requests, and tracking progress.</p>
-        </div>
+      <PageHeader
+        title="Your classes"
+        description="Continue entering marks, reviewing requests, and tracking progress."
+      >
         <Button onClick={() => router.push(nextClassHref)}>Open marks workflow</Button>
-      </div>
+      </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

@@ -18,6 +18,7 @@ import {
   useDeleteAcademicYear,
 } from '@/lib/client/hooks';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 export default function AcademicYearsPage() {
   const { data, isLoading } = useAcademicYears();
@@ -136,10 +137,7 @@ export default function AcademicYearsPage() {
       )}
 
       {years.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white py-16 text-center">
-          <CalendarDays className="h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-sm text-slate-500">No academic years yet. Create your first one.</p>
-        </div>
+        <EmptyState message="No academic years yet. Create your first one." />
       )}
 
       {years.map((year) => (

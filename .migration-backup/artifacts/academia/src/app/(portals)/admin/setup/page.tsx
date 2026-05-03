@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -74,13 +74,12 @@ export default function SchoolSetupPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Settings2 className="h-6 w-6 text-slate-400" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">School Setup</h1>
-          <p className="text-sm text-slate-500">Configure school identity and academic preferences.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="School Setup"
+        description="Configure school identity and academic preferences."
+        titleClassName="text-2xl"
+        descriptionClassName="mt-1 text-sm text-slate-500"
+      />
 
       <Card className="border-slate-100">
         <CardHeader>
