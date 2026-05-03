@@ -10,27 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import type { AcademicYearRecord } from '@/schemas';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-interface Term {
-  id: string;
-  name: string;
-  examType: string;
-  order: number;
-  weightage: number;
-  isPublished: boolean;
-}
-
-interface AcademicYear {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  isCurrent: boolean;
-  isLocked: boolean;
-  terms: Term[];
-}
 
 export default function AcademicYearsPage() {
   const { data, isLoading, mutate } = useSWR('/api/v1/academic-years', fetcher);
@@ -38,7 +20,7 @@ export default function AcademicYearsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
 
-  const years: AcademicYear[] = data?.data?.academicYears ?? [];
+  const years: AcademicYearRecord[] = data?.data?.academicYears ?? [];
 
   const handleCreate = async () => {
     if (!form.name || !form.startDate || !form.endDate) {

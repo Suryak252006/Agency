@@ -314,8 +314,53 @@ export type UpdateAcademicYear = z.infer<typeof UpdateAcademicYearSchema>;
 export type CreateTerm = z.infer<typeof CreateTermSchema>;
 export type UpdateTerm = z.infer<typeof UpdateTermSchema>;
 export type CreateGrade = z.infer<typeof CreateGradeSchema>;
+export type UpdateGrade = z.infer<typeof UpdateGradeSchema>;
 export type CreateSection = z.infer<typeof CreateSectionSchema>;
+export type UpdateSection = z.infer<typeof UpdateSectionSchema>;
 export type CreateSubject = z.infer<typeof CreateSubjectSchema>;
+export type UpdateSubject = z.infer<typeof UpdateSubjectSchema>;
+export type UpdateSchool = z.infer<typeof UpdateSchoolSchema>;
+export type UpdateSchoolConfig = z.infer<typeof UpdateSchoolConfigSchema>;
+
+/** API response record shapes (server-managed fields not present in create/update schemas) */
+export type TermRecord = {
+  id: string;
+  name: string;
+  examType: ExamType;
+  order: number;
+  weightage: number;
+  isPublished: boolean;
+};
+
+export type AcademicYearRecord = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  isLocked: boolean;
+  terms: TermRecord[];
+};
+
+export type GradeRecord = {
+  id: string;
+  name: string;
+  level: number;
+  order: number;
+};
+
+export type SectionRecord = {
+  id: string;
+  name: string;
+};
+
+export type SubjectRecord = {
+  id: string;
+  name: string;
+  code: string;
+  subjectType: SubjectType;
+  departmentId: string | null;
+};
 
 /**
  * API Response Envelope
