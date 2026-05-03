@@ -47,94 +47,39 @@ import CustomFeatureFormModal from './custom-feature-form-modal';
 import AssignFeatureModal from './assign-feature-modal';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
+import {
+  useCustomFeatures,
+  useCustomFeatureAssignments,
+  useDeleteCustomFeature,
+  useRevokeCustomFeatureAssignment,
+} from '@/lib/client/hooks';
 
 export default function CustomFeaturesPage() {
-  const [features, setFeatures] = useState<ICustomFeature[]>([]);
-  const [assignments, setAssignments] = useState<ICustomFeatureAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeTab, setActiveTab] = useState('features');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<ICustomFeature | null>(null);
   const [deleteFeatureId, setDeleteFeatureId] = useState<string | null>(null);
   const [revokeAssignmentId, setRevokeAssignmentId] = useState<string | null>(null);
 
+  // Debounce search input (300 ms — preserves existing UX)
   useEffect(() => {
-    if (activeTab === 'features') {
-      const fetchFeatures = async () => {
-        try {
-          setLoading(true);
-          const params = new URLSearchParams({ page: page.toString(), pageSize: '10', search });
-          const res = await fetch(`/api/rbac/custom-features?${params}`);
-          if (!res.ok) throw new Error('Failed to fetch features');
-          const json = await res.json();
-          setFeatures(json.data?.items ?? []);
-          setTotalPages(json.data?.totalPages ?? 1);
-        } catch {
-          toast.error('Failed to fetch features');
-        } finally {
-          setLoading(false);
-        }
-      };
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-      const debounce = setTimeout(fetchFeatures, 300);
-      return () => clearTimeout(debounce);
-    }
-  }, [search, page, activeTab]);
+  const featuresQuery = useCustomFeatures(page, debouncedSearch);
+  const assignmentsQuery = useCustomFeatureAssignments(activeTab === 'assignments');
+  const deleteFeatureMutation = useDeleteCustomFeature();
+  const revokeAssignmentMutation = useRevokeCustomFeatureAssignment();
 
-  useEffect(() => {
-    if (activeTab === 'assignments') {
-      const fetchAssignments = async () => {
-        try {
-          setLoading(true);
-          const res = await fetch('/api/rbac/custom-features/assignments');
-          if (!res.ok) throw new Error('Failed to fetch assignments');
-          const json = await res.json();
-          setAssignments(json.data ?? json);
-        } catch {
-          toast.error('Failed to fetch assignments');
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      const debounce = setTimeout(fetchAssignments, 300);
-      return () => clearTimeout(debounce);
-    }
-  }, [activeTab]);
-
-  const handleDeleteFeature = async () => {
-    if (!deleteFeatureId) return;
-    try {
-      const res = await fetch(`/api/rbac/custom-features/${deleteFeatureId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete feature');
-      setFeatures((prev) => prev.filter((f) => f.id !== deleteFeatureId));
-      toast.success('Feature deleted successfully');
-    } catch {
-      toast.error('Failed to delete feature');
-    } finally {
-      setDeleteFeatureId(null);
-    }
-  };
-
-  const handleRevokeAssignment = async () => {
-    if (!revokeAssignmentId) return;
-    try {
-      const res = await fetch(`/api/rbac/custom-features/assignments/${revokeAssignmentId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to revoke');
-      setAssignments((prev) => prev.filter((a) => a.id !== revokeAssignmentId));
-      toast.success('Assignment revoked');
-    } catch {
-      toast.error('Failed to revoke assignment');
-    } finally {
-      setRevokeAssignmentId(null);
-    }
-  };
+  const features: ICustomFeature[] = featuresQuery.data?.data?.items ?? [];
+  const totalPages: number = featuresQuery.data?.data?.totalPages ?? 1;
+  const assignments: ICustomFeatureAssignment[] =
+    assignmentsQuery.data?.data ?? assignmentsQuery.data ?? [];
 
   const getStatusBadge = (assignment: ICustomFeatureAssignment) => {
     if (assignment.declinedAt) return <Badge variant="destructive">Declined</Badge>;
@@ -191,7 +136,7 @@ export default function CustomFeaturesPage() {
               <CardDescription>Total: {features.length} features</CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {featuresQuery.isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-12 w-full rounded-lg" />
@@ -273,7 +218,7 @@ export default function CustomFeaturesPage() {
               <CardDescription>View and manage feature access assignments</CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {assignmentsQuery.isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <Skeleton key={i} className="h-16 w-full rounded-lg" />
@@ -356,7 +301,14 @@ export default function CustomFeaturesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteFeature}
+              onClick={() => {
+                if (deleteFeatureId) {
+                  deleteFeatureMutation.mutate(
+                    { id: deleteFeatureId },
+                    { onSettled: () => setDeleteFeatureId(null) },
+                  );
+                }
+              }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               Delete
@@ -376,7 +328,14 @@ export default function CustomFeaturesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleRevokeAssignment}
+              onClick={() => {
+                if (revokeAssignmentId) {
+                  revokeAssignmentMutation.mutate(
+                    { id: revokeAssignmentId },
+                    { onSettled: () => setRevokeAssignmentId(null) },
+                  );
+                }
+              }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               Revoke

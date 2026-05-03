@@ -40,6 +40,7 @@ import { ICustomFeature } from '@/types/rbac';
 import { toast } from 'sonner';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
+import { useRolesAll, useUsersAll, useAssignCustomFeature } from '@/lib/client/hooks';
 
 interface AssignFeatureModalProps {
   isOpen: boolean;
@@ -66,44 +67,25 @@ export default function AssignFeatureModal({
   feature,
 }: AssignFeatureModalProps) {
   const [assignTo, setAssignTo] = useState<'role' | 'user'>('role');
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [expiryDate, setExpiryDate] = useState('');
   const [requiresAcceptance, setRequiresAcceptance] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [openRolePopover, setOpenRolePopover] = useState(false);
   const [openUserPopover, setOpenUserPopover] = useState(false);
 
-  // Fetch roles and users on mount
+  const rolesQuery = useRolesAll();
+  const usersQuery = useUsersAll();
+  const assignMutation = useAssignCustomFeature();
+
+  const roles: Role[] = rolesQuery.data?.data?.items ?? [];
+  const users: User[] = usersQuery.data?.data?.items ?? [];
+  const loading = assignMutation.isPending;
+
   useEffect(() => {
-    if (isOpen) {
-      fetchRolesAndUsers();
-      resetForm();
-    }
+    if (isOpen) resetForm();
   }, [isOpen]);
-
-  const fetchRolesAndUsers = async () => {
-    try {
-      // Fetch roles
-      const rolesRes = await fetch('/api/rbac/roles?pageSize=100');
-      if (rolesRes.ok) {
-        const json = await rolesRes.json();
-        setRoles(json.data?.items ?? []);
-      }
-
-      // Fetch users
-      const usersRes = await fetch('/api/users?pageSize=100');
-      if (usersRes.ok) {
-        const json = await usersRes.json();
-        setUsers(json.data?.items ?? []);
-      }
-    } catch {
-      toast.error('Failed to load data');
-    }
-  };
 
   const resetForm = () => {
     setAssignTo('role');
@@ -114,7 +96,7 @@ export default function AssignFeatureModal({
     setRequiresAcceptance(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!feature) return;
@@ -129,36 +111,22 @@ export default function AssignFeatureModal({
       return;
     }
 
-    try {
-      setLoading(true);
-      const payload = {
-        featureId: feature.id,
-        roleId: assignTo === 'role' ? selectedRole : undefined,
-        userId: assignTo === 'user' ? selectedUser : undefined,
-        startDate: new Date(startDate),
-        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-        requiresAcceptance,
-      };
+    const payload = {
+      featureId: feature.id,
+      roleId: assignTo === 'role' ? selectedRole : undefined,
+      userId: assignTo === 'user' ? selectedUser : undefined,
+      startDate: new Date(startDate),
+      expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+      requiresAcceptance,
+    };
 
-      const res = await fetch('/api/rbac/custom-features/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to assign feature');
-      }
-
-      toast.success('Feature assigned successfully');
-      onSaved();
-      handleClose();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to assign feature');
-    } finally {
-      setLoading(false);
-    }
+    assignMutation.mutate(payload, {
+      onSuccess: () => {
+        toast.success('Feature assigned successfully');
+        onSaved();
+        handleClose();
+      },
+    });
   };
 
   const handleClose = () => {

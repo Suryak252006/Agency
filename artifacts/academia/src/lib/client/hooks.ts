@@ -629,3 +629,94 @@ export function useDeleteRole() {
     onError: (error: Error) => toast.error(error.message || 'Failed to delete role'),
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Roles — flat list for modals (no pagination)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useRolesAll() {
+  return useQuery({
+    queryKey: [...queryKeys.roles.all, 'all'] as const,
+    queryFn: () => apiClient.get<any>('/api/rbac/roles?pageSize=100'),
+    staleTime: 30 * 1000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Users — flat list for modals (no pagination)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useUsersAll() {
+  return useQuery({
+    queryKey: ['users', 'all'] as const,
+    queryFn: () => apiClient.get<any>('/api/users?pageSize=100'),
+    staleTime: 30 * 1000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom Features
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useCustomFeatures(page: number, search: string) {
+  const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
+  return useQuery({
+    queryKey: ['customFeatures', 'list', page, search] as const,
+    queryFn: () => apiClient.get<any>(`/api/rbac/custom-features?${params.toString()}`),
+    staleTime: 30 * 1000,
+    placeholderData: (prev: unknown) => prev,
+  });
+}
+
+export function useCustomFeatureAssignments(enabled: boolean) {
+  return useQuery({
+    queryKey: ['customFeatures', 'assignments'] as const,
+    queryFn: () => apiClient.get<any>('/api/rbac/custom-features/assignments'),
+    staleTime: 30 * 1000,
+    enabled,
+  });
+}
+
+export function useAssignCustomFeature() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      featureId: string;
+      roleId?: string;
+      userId?: string;
+      startDate: Date;
+      expiryDate?: Date;
+      requiresAcceptance: boolean;
+    }) => apiClient.post<any>('/api/rbac/custom-features/assign', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customFeatures'] });
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to assign feature'),
+  });
+}
+
+export function useDeleteCustomFeature() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/rbac/custom-features/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customFeatures'] });
+      toast.success('Feature deleted successfully');
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to delete feature'),
+  });
+}
+
+export function useRevokeCustomFeatureAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      apiClient.delete<any>(`/api/rbac/custom-features/assignments/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customFeatures'] });
+      toast.success('Assignment revoked');
+    },
+    onError: (error: Error) => toast.error(error.message || 'Failed to revoke assignment'),
+  });
+}
