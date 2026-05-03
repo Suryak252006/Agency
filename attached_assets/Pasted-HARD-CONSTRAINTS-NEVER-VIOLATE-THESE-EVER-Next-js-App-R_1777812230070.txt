@@ -1,0 +1,333 @@
+HARD CONSTRAINTS — NEVER VIOLATE THESE EVER
+
+Next.js App Router only. No Vite. No Express. No stack migration.
+Auth and DB are Supabase. Use @supabase/ssr.
+DATABASE_URL must include ?sslmode=require&pgbouncer=true
+DIRECT_URL is for migrations only (port 5432, no pgbouncer).
+Do not rebuild from scratch. Evolve the existing codebase only.
+Do not run git add, git commit, or git push at any point.
+Do not ask the user for input between batches.
+Do not stop to ask permission. Work continuously until fully done.
+
+MISSION — PHASE 8 ONWARDS
+
+The previous session completed 61 API routes, 39 portal pages, 34 Prisma models,
+92/93 tests green, 0 TypeScript errors.
+
+These are the remaining gaps to close in this session:
+
+════════════════════════════════════════════════════════
+BLOCK A — FEE COLLECTION + RECEIPT PRINTING
+════════════════════════════════════════════════════════
+
+A1 — Fee Collection Entry Form
+File: src/app/(portals)/admin/fees/collection/new/page.tsx
+- Form fields: studentId (searchable select), feeItemId (select),
+  amount, paymentMode (CASH/ONLINE/CHEQUE/DD), receiptDate, notes
+- On submit: POST /api/v1/fees/collections
+- After success: redirect to /admin/fees/collections with toast
+
+A2 — Fee Collections List Page
+File: src/app/(portals)/admin/fees/collections/page.tsx
+- Table: receipt number, student name, amount, paymentMode, receiptDate, status
+- Filter by: paymentMode, dateRange, studentSearch
+- Each row: View Receipt button → opens print dialog
+- Void button (with ConfirmDialog) for ACTIVE receipts → PATCH void endpoint
+
+A3 — Receipt Print Page
+File: src/app/(portals)/admin/fees/collections/[id]/receipt/page.tsx
+- Full receipt layout: school name, address, logo placeholder
+- Receipt number, date, student name, class, amount in words + digits
+- Payment mode, fee item name, academic year
+- Authorized signature line
+- Print button that calls window.print()
+- @media print CSS: hide nav/sidebar, print only receipt body
+- This page must be fully printable from the browser
+
+A4 — Receipt Void API
+File: src/app/api/v1/fees/collections/[id]/void/route.ts
+- PATCH: set status = VOID, record voidReason, voidedAt, voidedBy
+- Only ACTIVE receipts can be voided
+- Write an audit log entry on void
+
+A5 — Receipt Number Generation
+- Use SELECT FOR UPDATE pattern (raw Prisma query) to generate
+  gapless sequential receipt numbers per school per academic year
+- Format: RCP-{YEAR}-{NNNNNN} e.g. RCP-2526-000001
+- Never use timestamp or random for receipt numbering
+
+════════════════════════════════════════════════════════
+BLOCK B — BULK STUDENT IMPORT
+════════════════════════════════════════════════════════
+
+B1 — CSV Template Download
+File: src/app/(portals)/admin/students/import/page.tsx
+- Page with two sections:
+  Section 1: Download CSV template button
+    Template columns: firstName, lastName, dateOfBirth (YYYY-MM-DD),
+    gender (MALE/FEMALE/OTHER), admissionNumber, gradeId, sectionId,
+    parentFirstName, parentLastName, parentEmail, parentPhone, relationship
+  Section 2: Upload CSV file
+    - File input (accept .csv only)
+    - Preview first 5 rows in a table after file is selected
+    - Validate button → calls POST /api/v1/students/import/validate
+    - Import button → calls POST /api/v1/students/import/execute
+    - Shows per-row result: success / error with reason
+
+B2 — Bulk Import Validate API
+File: src/app/api/v1/students/import/validate/route.ts
+- Accepts multipart/form-data with CSV file
+- Parses CSV, validates each row against Zod schema
+- Returns: { valid: Row[], invalid: { row, errors }[] }
+- Does NOT write to DB
+
+B3 — Bulk Import Execute API
+File: src/app/api/v1/students/import/execute/route.ts
+- Accepts same CSV format
+- For each valid row:
+  - Create or find Parent by email
+  - Create Student with all SIS fields
+  - Create ParentStudent link
+  - Create ClassStudent enrollment for current active academic year
+- Wrap in Prisma transaction
+- Returns per-row result: created / skipped / error
+- Write audit log for bulk import action
+
+════════════════════════════════════════════════════════
+BLOCK C — IN-APP MESSAGING SYSTEM
+════════════════════════════════════════════════════════
+
+C1 — Prisma Schema additions
+Add to schema.prisma:
+  Message {
+    id            String   @id @default(cuid())
+    schoolId      String
+    fromUserId    String
+    toUserId      String
+    subject       String
+    body          String
+    isRead        Boolean  @default(false)
+    readAt        DateTime?
+    createdAt     DateTime @default(now())
+    school        School   @relation(fields:[schoolId], references:[id])
+    fromUser      User     @relation("SentMessages", fields:[fromUserId], references:[id])
+    toUser        User     @relation("ReceivedMessages", fields:[toUserId], references:[id])
+  }
+
+  Add SentMessages / ReceivedMessages relations to User model.
+  Run prisma migrate dev --name add_messages or prisma db push after adding.
+
+C2 — Messages API
+File: src/app/api/v1/messages/route.ts
+- GET: list inbox messages for current user (toUserId = me), paginated,
+  sorted by createdAt DESC, include fromUser name
+- POST: create message { toUserId, subject, body }
+  - validate toUserId belongs to same school
+  - insert Message record
+  - insert NotificationLog entry for recipient
+
+File: src/app/api/v1/messages/[id]/route.ts
+- GET: get single message, mark isRead=true, set readAt=now()
+- DELETE: soft delete (add deletedAt field) — sender can delete sent,
+  recipient can delete received
+
+File: src/app/api/v1/messages/sent/route.ts
+- GET: list sent messages for current user (fromUserId = me), paginated
+
+File: src/app/api/v1/messages/unread-count/route.ts
+- GET: return { count: number } — unread message count for current user
+- This is called on every page load to show badge in nav
+
+C3 — Messaging UI — Inbox
+File: src/app/(portals)/admin/messages/page.tsx
+File: src/app/(portals)/faculty/messages/page.tsx
+File: src/app/(portals)/parent/messages/page.tsx
+
+Each portal gets the same inbox layout:
+- Left panel: Inbox tab + Sent tab
+- Right panel: message thread view
+- Inbox rows: sender name, subject (truncated), time, unread bold styling
+- Clicking a row: marks as read, shows full message in right panel
+- Compose button → opens compose modal/sheet
+
+C4 — Compose Message Modal
+Shared component: src/components/messaging/compose-modal.tsx
+- Fields: To (searchable user select scoped to same school),
+  Subject (text input), Body (textarea, min 3 lines)
+- Submit: POST /api/v1/messages
+- On success: toast "Message sent", close modal, refresh inbox
+
+C5 — Unread Badge in Nav
+- Add unread message count badge to the Messages nav link in all three portals
+- Fetch from /api/v1/messages/unread-count on layout mount
+- Refresh every 60 seconds via setInterval (not WebSocket — polling is fine here)
+- Show red badge with count if count > 0
+
+C6 — Notification Bell (shell top bar)
+- Add a bell icon in TopBar
+- Fetch /api/v1/notifications (existing NotificationLog table) for current user
+- Show dropdown with last 10 unread notifications
+- Mark all read button → PATCH /api/v1/notifications/mark-read
+
+C7 — Notifications API
+File: src/app/api/v1/notifications/route.ts
+- GET: list last 20 NotificationLog entries for current user, unread first
+File: src/app/api/v1/notifications/mark-read/route.ts
+- PATCH: set isRead=true on all unread notifications for current user
+
+════════════════════════════════════════════════════════
+BLOCK D — DYNAMIC vs STATIC AUDIT + FEATURE CATALOGUE
+════════════════════════════════════════════════════════
+
+D1 — Dynamic vs Static Route Audit
+After all new pages are built, create this file:
+File: ROUTE_AUDIT.md (in artifacts/academia root)
+
+Format:
+## Route Audit — academia ERP
+| Route | Type | Dynamic parts | Cache strategy | Notes |
+|---|---|---|---|---|
+List every route in the app. Mark each as:
+- STATIC — no DB call, safe to cache forever
+- DYNAMIC — DB call on every request
+- ISR — could be incrementally revalidated
+- CLIENT — fetched client-side via TanStack Query
+
+For DYNAMIC routes, note WHY they are dynamic
+(tenant-scoped, user-specific, real-time, write).
+
+D2 — Full Feature Catalogue
+After all building is done, create this file:
+File: FEATURES.md (in artifacts/academia root)
+
+Format:
+## Academia ERP — Full Feature Catalogue
+
+### Admin Portal
+List every feature with status: ✅ Complete | 🚧 Partial | ❌ Missing
+
+### Faculty Portal
+(same)
+
+### Parent Portal
+(same)
+
+### Super-Admin Portal
+(same)
+
+### API Surface
+List all /api/v1/... routes with method and description
+
+### Messaging System
+List all messaging features
+
+### Infrastructure
+- Auth provider, DB provider, connection strategy
+- Environment variables required
+- Migration strategy
+
+════════════════════════════════════════════════════════
+BLOCK E — PERFORMANCE + PERCEIVED SPEED
+════════════════════════════════════════════════════════
+
+E1 — TanStack Query config
+In the QueryClient provider (src/app/providers.tsx or equivalent):
+  Set:
+    staleTime: 30 * 1000        // data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000       // keep in cache 5 min
+    refetchOnWindowFocus: false  // do not refetch on every tab switch
+    retry: 1                     // retry once on failure
+
+E2 — Optimistic updates on mutations
+For these high-frequency mutations, add optimistic updates:
+- Mark as read (messages)
+- Delete item from list (any list page)
+- Toggle fee payment status
+
+Pattern:
+  onMutate: async () => {
+    await queryClient.cancelQueries({ queryKey })
+    const prev = queryClient.getQueryData(queryKey)
+    queryClient.setQueryData(queryKey, optimisticValue)
+    return { prev }
+  }
+  onError: (err, vars, ctx) => queryClient.setQueryData(queryKey, ctx.prev)
+  onSettled: () => queryClient.invalidateQueries({ queryKey })
+
+E3 — Suspense + streaming for heavy pages
+For these pages, wrap the main data section in <Suspense fallback={<Skeleton/>}>:
+- /admin/students (large list)
+- /admin/fees/collections (large list)
+- /admin/fees/dues (large list)
+- /admin/messages inbox
+- /parent/marks
+
+E4 — API response pagination everywhere
+All list endpoints must return:
+  { data: [...], meta: { total, page, pageSize, totalPages } }
+Default pageSize: 20. Max pageSize: 100.
+Use Prisma skip/take. Never return unbounded lists.
+
+E5 — Select only needed fields
+All Prisma queries must use select:{} or include:{} — never fetch full model
+when only 3-4 fields are needed for a list view.
+
+E6 — Database indexes
+Add these indexes to schema.prisma if not already present:
+  @@index([schoolId])                    — on every tenant-scoped model
+  @@index([schoolId, createdAt])         — on Message, NotificationLog, FeeCollection
+  @@index([schoolId, studentId])         — on Attendance, Mark, FeeCollection
+  @@index([toUserId, isRead])            — on Message (inbox query)
+  @@index([fromUserId])                  — on Message (sent query)
+
+E7 — Loading states and skeleton screens
+Every list page that fetches data must show a skeleton loader while loading.
+Every form submit button must show a loading spinner and be disabled during submission.
+No blank white flash — every async boundary must have a fallback.
+
+E8 — Error boundaries
+Wrap each portal layout in an ErrorBoundary.
+Each data section that can fail independently should have its own inline error state
+with a retry button. Do not show full page errors for partial data failures.
+
+════════════════════════════════════════════════════════
+BLOCK F — FINAL VERIFICATION
+════════════════════════════════════════════════════════
+
+F1 — Run typecheck
+pnpm run typecheck → must pass with 0 errors
+
+F2 — Run full test suite
+pnpm run test:all → all tests must pass
+
+F3 — Verify app starts
+Check that the academia workflow starts and the app is accessible on port 3000
+
+F4 — Verify new routes compile
+Visit these routes mentally / check build output:
+/admin/fees/collection/new
+/admin/fees/collections
+/admin/students/import
+/admin/messages
+/faculty/messages
+/parent/messages
+
+F5 — Write ROUTE_AUDIT.md and FEATURES.md
+These two files are mandatory deliverables of this session.
+
+════════════════════════════════════════════════════════
+FINAL REPORT FORMAT
+════════════════════════════════════════════════════════
+
+When done, provide ONE final report with these sections:
+
+1. Summary — what was built, test result, typecheck result
+2. Block-by-block completion — A through F, what was done in each
+3. Dynamic vs Static summary — how many DYNAMIC, STATIC, CLIENT routes exist
+4. Performance changes — what was optimised and expected impact
+5. Remaining risks — real risks only, no filler
+6. Full feature list — copy the FEATURES.md summary inline
+
+DO NOT git add, git commit, or git push.
+DO NOT ask for permission between batches.
+DO NOT stop until all blocks are complete or a true external blocker exists.
