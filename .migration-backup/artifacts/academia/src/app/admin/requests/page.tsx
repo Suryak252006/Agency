@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useApproveRequest, useRejectRequest, useRequests } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 interface Request {
   id: string;
@@ -50,10 +51,10 @@ export default function AdminRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Requests</h1>
-        <p className="mt-2 text-sm text-slate-600">Approve or reject edit and access requests.</p>
-      </div>
+      <PageHeader
+        title="Requests"
+        description="Approve or reject edit and access requests."
+      />
 
       <div className="flex flex-wrap gap-2">
         {['PENDING', 'APPROVED', 'REJECTED'].map((status) => (

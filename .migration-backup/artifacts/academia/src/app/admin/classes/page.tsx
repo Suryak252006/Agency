@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useApproveLock, useClasses, useExams, useMarks, useRejectLock } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   SUBMITTED:    { label: 'Submitted',    className: 'bg-blue-100 text-blue-700' },
@@ -93,12 +94,10 @@ export default function AdminClassesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Review lock requests</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Faculty submit lock requests when marks are finalised. Approve to lock them permanently, or reject to return for editing.
-        </p>
-      </div>
+      <PageHeader
+        title="Review lock requests"
+        description="Faculty submit lock requests when marks are finalised. Approve to lock them permanently, or reject to return for editing."
+      />
 
       <Card>
         <CardHeader>

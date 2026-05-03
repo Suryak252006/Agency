@@ -21,6 +21,7 @@ import {
   useDeleteSubject,
 } from '@/lib/client/hooks';
 import type { GradeRecord, SectionRecord, SubjectRecord } from '@/schemas';
+import { PageHeader } from '@/components/page-header';
 
 export default function GradesPage() {
   const { data: gradesData } = useGrades();
@@ -96,10 +97,12 @@ export default function GradesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Grades, Sections & Subjects</h1>
-        <p className="mt-1 text-sm text-slate-500">Configure school-wide academic structure.</p>
-      </div>
+      <PageHeader
+        title="Grades, Sections & Subjects"
+        description="Configure school-wide academic structure."
+        titleClassName="text-2xl"
+        descriptionClassName="mt-1 text-sm text-slate-500"
+      />
 
       <Tabs defaultValue="grades">
         <TabsList className="rounded-xl">

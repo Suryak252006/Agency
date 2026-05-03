@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useCreateRequest, useRequests } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 const MIN_REASON_LENGTH = 10;
 
@@ -29,10 +30,10 @@ export default function FacultyRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Requests</h1>
-        <p className="mt-2 text-sm text-slate-600">Submit and track your current requests.</p>
-      </div>
+      <PageHeader
+        title="Requests"
+        description="Submit and track your current requests."
+      />
 
       <Card>
         <CardHeader>

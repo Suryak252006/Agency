@@ -17,6 +17,7 @@ import {
   useLockAcademicYear,
   useDeleteAcademicYear,
 } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 export default function AcademicYearsPage() {
   const { data, isLoading } = useAcademicYears();
@@ -81,16 +82,17 @@ export default function AcademicYearsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Academic Years</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage school years and their exam terms.</p>
-        </div>
+      <PageHeader
+        title="Academic Years"
+        description="Manage school years and their exam terms."
+        titleClassName="text-2xl"
+        descriptionClassName="mt-1 text-sm text-slate-500"
+      >
         <Button onClick={() => setShowCreate((v) => !v)}>
           <Plus className="mr-2 h-4 w-4" />
           New academic year
         </Button>
-      </div>
+      </PageHeader>
 
       {showCreate && (
         <Card className="border-sky-100">

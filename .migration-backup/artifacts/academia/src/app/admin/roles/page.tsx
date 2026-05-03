@@ -46,6 +46,7 @@ import { IRole } from '@/types/rbac';
 import RoleFormModal from './role-form-modal';
 import { toast } from 'sonner';
 import { useRoles, useDeleteRole, queryKeys } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 export default function RolesPage() {
   const [search, setSearch] = useState('');
@@ -105,18 +106,16 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Roles & Permissions</h1>
-          <p className="text-slate-600">
-            Manage system roles and define permissions for your organisation
-          </p>
-        </div>
+      <PageHeader
+        title="Roles & Permissions"
+        description="Manage system roles and define permissions for your organisation"
+        descriptionClassName="text-slate-600"
+      >
         <Button onClick={handleCreateRole} className="gap-2">
           <Plus className="h-4 w-4" />
           Create Role
         </Button>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="pt-6">

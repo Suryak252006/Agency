@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useClassDetails, useClasses, useExams, useMarks, useSaveMark, useRequestLock } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   SUBMITTED:    { label: 'Submitted',    className: 'bg-blue-100 text-blue-700' },
@@ -128,12 +129,10 @@ export default function FacultyClassesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Marks entry</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Enter marks for your class. When ready, request a lock — Admin or HOD will approve to finalise.
-        </p>
-      </div>
+      <PageHeader
+        title="Marks entry"
+        description="Enter marks for your class. When ready, request a lock — Admin or HOD will approve to finalise."
+      />
 
       {/* Workflow legend */}
       <div className="flex flex-wrap gap-3 text-xs">

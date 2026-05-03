@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStudents } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 interface Student {
   id: string;
@@ -17,10 +18,10 @@ export default function AdminStudentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Students</h1>
-        <p className="mt-2 text-sm text-slate-600">School-wide student directory for the current tenant.</p>
-      </div>
+      <PageHeader
+        title="Students"
+        description="School-wide student directory for the current tenant."
+      />
 
       {students.isError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

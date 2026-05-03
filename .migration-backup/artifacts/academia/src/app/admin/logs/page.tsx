@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLogs } from '@/lib/client/hooks';
+import { PageHeader } from '@/components/page-header';
 
 interface LogEntry {
   id: string;
@@ -24,12 +25,11 @@ export default function AdminLogsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Audit logs</h1>
-        <p className="text-sm text-slate-600">
-          Institution-scoped audit activity backed by the secured logs API.
-        </p>
-      </div>
+      <PageHeader
+        title="Audit logs"
+        description="Institution-scoped audit activity backed by the secured logs API."
+        descriptionClassName="text-sm text-slate-600"
+      />
 
       <Card>
         <CardHeader>
