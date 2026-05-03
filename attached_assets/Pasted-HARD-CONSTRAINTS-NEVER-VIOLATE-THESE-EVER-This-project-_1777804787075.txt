@@ -1,0 +1,271 @@
+HARD CONSTRAINTS — NEVER VIOLATE THESE EVER
+
+This project must remain a Next.js App Router application.
+Do not migrate to Vite. Do not migrate to Express. Do not replace the stack.
+Auth and DB are on Supabase. Use Supabase Auth + Supabase Postgres.
+Use @supabase/ssr for App Router integration.
+Do not rebuild from scratch. Evolve the existing codebase only.
+
+GIT RULES — CRITICAL
+- DO NOT run git commit at any point
+- DO NOT run git push at any point
+- DO NOT run git add at any point
+- DO NOT touch the git history in any way
+- Only write, edit, or delete files in the working directory
+- The user will handle all git operations manually
+- Do not interfere with the user's git workflow under any circumstances
+
+INPUT RULES — CRITICAL
+- Do not prompt the user for input during execution
+- Do not ask "continue?" between batches
+- Do not ask for permission after each batch
+- Do not wait for confirmation to proceed
+- Do not send intermediate "ready for next batch?" messages
+- Only stop when the full mission is complete or a true external blocker exists
+- If a decision must be made, make the best one based on the existing codebase and spec, then proceed
+
+PRIMARY GOAL
+
+Turn this repository into a production-grade, enterprise-standard, full-stack School ERP on Next.js App Router with:
+- Supabase Auth + Supabase Postgres as the single identity and database layer
+- tenant-safe multi-school ERP architecture
+- admin, faculty, parent, and super-admin portals
+- secure RBAC, audit logs, and request flows
+- production-safe API and data flows
+- proper SEO foundation
+- stable test suite and deployment-safe environment configuration
+
+SOURCE OF TRUTH
+
+Use the uploaded ERP implementation specification in the workspace as the functional and architectural source of truth.
+That spec defines entities, routes, workflows, portals, tenant model, security model, and milestone order.
+Follow it unless the current codebase already has a better compatible implementation.
+Do not invent a different ERP. Build the one described in the spec.
+
+SUPABASE RULES
+
+Auth:
+- Supabase Auth is the source of identity
+- Use @supabase/ssr for all Next.js App Router auth integration
+- Browser/client components use only:
+  - NEXT_PUBLIC_SUPABASE_URL
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY is server-only. Never expose it in client code, browser
+  bundles, logs, docs, tests, or this report
+- Remove all hardcoded secrets from tracked files
+- Make .env.example safe and complete with placeholder values only
+
+Database:
+- DATABASE_URL must always include: ?sslmode=require&pgbouncer=true
+  This is mandatory for Supabase Postgres with PgBouncer connection pooling
+- Prisma requires a separate direct connection for migrations:
+  - DATABASE_URL = pooled connection string (port 6543) with ?sslmode=require&pgbouncer=true
+  - DIRECT_URL = direct connection string (port 5432) without pgbouncer
+  - prisma.schema must declare: directUrl = env("DIRECT_URL")
+  - prisma migrate deploy must always use DIRECT_URL, not the pooled URL
+- .env.example must include both DATABASE_URL and DIRECT_URL as safe placeholder entries
+- Replit currently manages these secrets:
+  - DATABASE_URL (managed by Replit platform)
+  - AUTH_SECRET
+  - NEXT_PUBLIC_SUPABASE_URL
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY
+- If SUPABASE_SERVICE_ROLE_KEY is needed for server-only admin operations,
+  note it as a required secret but do not hardcode its value anywhere
+- Verify DB connectivity on boot
+- Run: pnpm prisma migrate deploy (using DIRECT_URL)
+- Run: pnpm prisma generate
+- Confirm Prisma client initializes cleanly
+
+Session + middleware:
+- Supabase session handling must work correctly in Next.js App Router middleware
+  and server components
+- Private ERP portal routes must be protected server-side, not only via client UI
+- Auth boundaries for parent, faculty, admin, and super-admin must be enforced
+  on the server
+
+EXECUTION ORDER
+
+Phase 0 — baseline and safety
+- Read the current repo fully
+- Read the uploaded ERP implementation specification
+- Update replit.md with this rule:
+  "This project is Next.js App Router only. No Vite. No Express. No stack migration.
+   Auth and DB are Supabase. DATABASE_URL must include ?sslmode=require&pgbouncer=true."
+- Run:
+  - pnpm run typecheck
+  - pnpm run test:all
+- Inspect current auth, DB, middleware, hooks, portals, layouts, route groups,
+  shared components, and Supabase client usage
+- Build an internal execution plan from actual current code state, not old assumptions
+
+Phase 1 — Supabase auth and environment hardening
+- Audit all Supabase usage across the repo
+- Normalize all Supabase clients:
+  - browser/client component client
+  - server component / route handler client
+  - server admin client where strictly necessary
+- Ensure only public keys are accessible in client code
+- Ensure service role usage is server-only and minimal
+- Check DATABASE_URL — confirm it includes ?sslmode=require&pgbouncer=true
+- If Prisma schema does not have directUrl configured, add it and ensure
+  DIRECT_URL is referenced as the direct non-pooled connection
+- Run: pnpm prisma migrate deploy
+- Run: pnpm prisma generate
+- Confirm Prisma client initializes without connection errors
+- Remove stale, duplicate, and hardcoded env references everywhere
+- Update .env.example safely with placeholders for:
+  DATABASE_URL, DIRECT_URL, AUTH_SECRET,
+  NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY
+- Verify auth login/logout/session/protected routes work with Supabase
+- Verify DB connectivity and app runtime boot
+- Run typecheck — must pass before continuing
+
+Phase 2 — architecture cleanup
+- Replace any remaining product-code raw fetch('/api/...') calls in portal
+  pages and components with the shared hooks/query/mutation layer
+- Add shared ConfirmDialog component where destructive flows are still using
+  inline AlertDialog patterns
+- Remove dead code, stale barrel files, orphaned files, outdated auth/db helpers,
+  and obsolete compatibility shims
+- Split oversized monolith files if the split materially improves maintainability
+- Standardize loading, error, empty, and confirm states across all portals
+- Run typecheck + test:all — both must pass before continuing
+
+Phase 3 — ERP completion against the uploaded spec
+Use the uploaded ERP spec to identify any materially incomplete modules
+and finish them properly inside the existing architecture, prioritizing:
+1. Tenant scoping and request context (schoolId injected everywhere server-side)
+2. Academic years / terms / grades / sections / subjects
+3. Students / parents / enrollments
+4. Attendance workflows
+5. Marks / marks history / approval-lock workflows
+6. Report cards (config, generate, publish, PDF)
+7. Fee structures / installments / collections / receipts / void flows
+8. Notices / notification logs
+9. Parent portal visibility constraints (marks only if LOCKED, report cards only
+   if isPublished, fees, attendance calendar)
+10. Super-admin / tenant operations
+11. Request and job queue flows
+12. Audit logging for all write operations
+
+Do not create fake placeholder pages to appear done.
+Finish each module properly or leave it cleanly marked as future scope.
+Run typecheck + test:all after each major module addition.
+
+Phase 4 — Supabase security model
+- Enforce schoolId / tenant scoping in all server-side logic
+- Add or align RLS policies where the architecture uses direct Supabase DB access
+- Ensure auth roles, claims, and ERP permissions are enforced server-side,
+  not only hidden in UI
+- Validate that parent, faculty, admin, and super-admin portal access boundaries
+  are real and enforced in middleware or server actions, not just route layout checks
+
+Phase 5 — SEO foundation
+- Metadata strategy in layout.tsx / page.tsx files
+- Titles and descriptions for public routes
+- Open Graph and Twitter card metadata
+- robots.ts — disallow crawling of all authenticated ERP portal routes
+- sitemap.ts — only public/auth routes if any exist
+- noindex meta tag on all admin, faculty, parent, and super-admin portal pages
+- Sensible metadata on public-facing auth pages without leaking private data
+- Canonical handling where relevant
+
+Phase 6 — quality and production readiness
+- Zod schema validation on all API inputs where missing
+- Consistent API error responses using the existing error handling pattern
+- Transaction safety for all fee collection, receipt generation, and lock flows
+- Gapless receipt numbering using SELECT FOR UPDATE pattern
+- Audit-safe write flows (immutable audit log, no delete)
+- No race-prone counter patterns
+- Protected middleware and route guards for all portals
+- No secret leakage from server into client bundles
+- No stale Vite or Express artifacts anywhere in the repo
+
+Phase 7 — final verification
+Before stopping, verify all of the following:
+- pnpm run typecheck → must pass with 0 errors
+- pnpm run test:all → must pass with all tests green
+- App starts cleanly
+- Supabase auth connects and session handling works
+- DB connection via Prisma works with the correct connection string
+- Key ERP routes compile and render
+- SEO files (robots.ts, sitemap.ts) build without error
+- No tracked source file contains a real secret value
+- .env.example is complete and safe
+- All file changes are saved in the working directory
+
+DO NOT DO THESE
+
+- DO NOT run git add, git commit, or git push — ever
+- DO NOT interfere with user git operations
+- DO NOT ask the user for input between batches
+- DO NOT ask "should I continue?" or "ready for next batch?"
+- DO NOT migrate to Vite, Express, or any other stack
+- DO NOT rebuild from scratch
+- DO NOT create placeholder pages to fake completion
+- DO NOT hardcode any Supabase secrets or connection strings
+- DO NOT expose SUPABASE_SERVICE_ROLE_KEY or DATABASE_URL in client code
+- DO NOT stop mid-execution without completing the full mission
+- DO NOT report fake "done" without real typecheck and test evidence
+
+FINAL REPORT FORMAT
+
+When fully done, stop and provide a single comprehensive final report:
+
+1. Executive Summary
+- What is now complete
+- Whether the ERP is production-ready
+- What remains, if anything, and why
+
+2. Batches Completed
+For each batch:
+- Name and purpose
+- Major files changed
+- Typecheck result
+- Test result
+
+3. ERP Coverage Status
+Report the status of each module:
+- Tenant model / school scoping
+- Supabase auth integration
+- Academic years / terms / grades / sections / subjects
+- Students / parents / enrollments
+- Attendance
+- Marks / locks / marks history
+- Report cards
+- Fee management / receipts / void flows
+- Notices / notification logs
+- Parent portal
+- Faculty portal
+- Admin portal
+- Super-admin portal
+- RBAC / audit logs / requests / jobs
+
+4. Supabase Security and Environment
+- What changed in auth integration
+- What changed in DB and env handling
+- DATABASE_URL confirmed to include ?sslmode=require&pgbouncer=true
+- DIRECT_URL confirmed for migrations
+- Public vs server-only key separation confirmed
+- No real secret values exposed anywhere
+
+5. SEO
+- What metadata and indexing rules were added
+- Which routes are indexable vs noindexed
+
+6. Test and Quality Evidence
+- Final typecheck result
+- Final test:all result
+- Any added or repaired tests
+- Known non-blocking warnings
+
+7. Remaining Risks
+- Real risks only, no generic filler
+
+IMPORTANT PRODUCT INTENT
+
+The end state must be a serious, production-oriented School ERP on Next.js App Router using Supabase Auth and Supabase Postgres.
+It must align with the uploaded implementation specification's entities, route model, workflows, and milestone logic.
+The current codebase is the base — extend and finish it professionally, not replace it.
+Minimum 60 minutes of continuous execution before stopping.

@@ -7,7 +7,7 @@ Multi-tenant K-12 School ERP SaaS for Indian schools. Built on Next.js 15 App Ro
 
 ### Stack
 - **Framework**: Next.js 15 (App Router, Server Components)
-- **Database**: PostgreSQL via Prisma 5 ORM
+- **Database**: PostgreSQL via Prisma 5 ORM (M04 schema — 34 models, 14 enums)
 - **Auth**: HMAC-SHA256 session cookies (`AUTH_SECRET`) — no Supabase auth
 - **UI**: shadcn/ui + Tailwind CSS
 - **API state**: TanStack Query v5
@@ -17,16 +17,19 @@ Multi-tenant K-12 School ERP SaaS for Indian schools. Built on Next.js 15 App Ro
 ```
 artifacts/academia/
 ├── prisma/
-│   └── schema.prisma          # Full multi-tenant schema
+│   └── schema.prisma          # Full multi-tenant schema (M04)
 ├── src/
 │   ├── app/
-│   │   ├── admin/             # Admin portal pages
-│   │   ├── faculty/           # Faculty portal pages
-│   │   ├── parent/            # Parent portal pages (Sprint 2+)
-│   │   └── api/               # API route handlers
+│   │   ├── (portals)/
+│   │   │   ├── admin/         # Admin portal pages
+│   │   │   ├── faculty/       # Faculty portal pages
+│   │   │   └── parent/        # Parent portal pages
+│   │   └── api/
+│   │       ├── v1/            # All new versioned API routes
+│   │       └── ...            # Legacy unversioned routes (kept for tests)
 │   ├── lib/
 │   │   ├── db.ts              # Prisma client singleton
-│   │   ├── db-tenant.ts       # tenantDb() — auto-injects schoolId in WHERE/data
+│   │   ├── db-tenant.ts       # tenantDb() — auto-injects schoolId
 │   │   ├── auth/
 │   │   │   └── session-cookie.ts  # HMAC cookie sign/verify
 │   │   ├── server/
@@ -34,52 +37,32 @@ artifacts/academia/
 │   │   │   ├── marks.ts       # Business logic: marks, lock workflow
 │   │   │   └── requests.ts    # Business logic: edit/access requests
 │   │   ├── rbac/
-│   │   │   └── middleware.ts  # RBAC decorators (withPermission, withRole, etc.)
-│   │   └── supabase/
-│   │       └── middleware.ts  # Next.js middleware (auth redirect logic)
+│   │   │   └── middleware.ts  # RBAC decorators
+│   │   └── client/
+│   │       └── hooks.ts       # useClasses, useGrades, useAcademicYears, etc.
 │   ├── modules/
 │   │   ├── academic/classes/http.ts
 │   │   ├── workflow/audit-logs/service.ts
 │   │   └── workflow/requests/http.ts
-│   └── schemas/               # Zod schemas shared between client and server
+│   └── schemas/               # Zod schemas (M04-aligned enum values)
 └── tests/
-    └── e2e/
-        ├── setup.ts            # Global fixtures (Tenant + User seeds)
-        └── *.test.ts           # Playwright E2E tests
+    ├── e2e/                   # 10 test files, 92 passing
+    └── unit/
 ```
 
 ## Multi-Tenancy Design
-
-### Tenant Model
-Every school is a `Tenant` record. `schoolId` on every tenant-scoped model is a FK to `Tenant.id`. Tenant IDs are used directly as `schoolId` values (e.g., `schl_xyz`).
 
 ### `tenantDb()` Helper (`src/lib/db-tenant.ts`)
 ```typescript
 const tdb = tenantDb(user.schoolId);
 // All findMany, findFirst, count → auto-inject WHERE schoolId = user.schoolId
-// All create → auto-inject data.schoolId = user.schoolId (runtime defense)
+// All create → auto-inject data.schoolId = user.schoolId
 // All updateMany, deleteMany → auto-inject WHERE schoolId = user.schoolId
-// findUnique, update → NOT intercepted; use findFirst/updateMany instead
-```
-
-**Usage pattern** in every API route:
-```typescript
-const user = await requireSessionUser();
-const tdb = tenantDb(user.schoolId);
-const classes = await tdb.class.findMany({ where: { grade: '10' } });
-// → SELECT * FROM "Class" WHERE "schoolId" = user.schoolId AND "grade" = '10'
+// findUnique, update → NOT intercepted; verify schoolId manually
 ```
 
 **Do NOT use `tdb` for** (no schoolId column):
-- `classStudent` (scope via `class.schoolId` nested filter)
-- `marksHistory` (scope via `marksId` FK)
-- `rolePermission` (global, no schoolId)
-- `permission` (global, no schoolId)
-
-**Keep `db` for**:
-- `db.marks.upsert(...)` — explicit schoolId in `create` clause
-- `db.request.update(...)` — ownership verified by prior `tdb.request.findFirst()`
-- `db.user.findUnique({ where: { email } })` — login, cross-tenant auth lookup
+- `classStudent`, `marksHistory`, `rolePermission`, `permission`, `facultyDepartment`
 
 ## Authentication
 
@@ -89,7 +72,7 @@ const classes = await tdb.class.findMany({ where: { grade: '10' } });
 - TTL: 8 hours (hard expiry enforced server-side)
 - Secret: `AUTH_SECRET` environment variable
 
-### Session Roles (AppSessionRole)
+### Session Roles
 | DB UserRole   | Session Role | Portal       |
 |---------------|--------------|--------------|
 | ADMIN         | `admin`      | `/admin`     |
@@ -98,23 +81,75 @@ const classes = await tdb.class.findMany({ where: { grade: '10' } });
 | FACULTY       | `faculty`    | `/faculty`   |
 | PARENT        | `parent`     | `/parent`    |
 
-### Login Flow
-`POST /api/auth/login` → validates credentials → maps DB role to session role → sets HMAC cookie → responds with `{ redirectTo }`.
+## Critical Schema Notes (M04)
 
-## Database Schema (Sprint 1)
+### Correct enum values
+- `AttendanceStatus`: PRESENT, ABSENT, LATE, **MEDICAL_LEAVE** (not EXCUSED)
+- `FeeFrequency`: ONE_TIME, MONTHLY, QUARTERLY, HALF_YEARLY, **ANNUAL** (not ANNUALLY)
+- `PaymentMode`: **CASH, CHEQUE, NEFT, UPI, DEMAND_DRAFT**
+- `NoticeType`: ACADEMIC, FEE (+ more)
+- `NoticeAudience`: ALL, PARENTS, STAFF, **ADMIN_ONLY, SPECIFIC_GRADES**
+- `ReportTemplate`: **CBSE_10_POINT**, PERCENTAGE, GRADE_ONLY, CUSTOM
+- `MarksStatus`: SUBMITTED, LOCK_PENDING, LOCKED, REJECTED
 
-### New models (Sprint 1)
-- **Tenant**: SaaS root — slug, name, board, subscriptionTier/Status, settings JSON
-- **SchoolConfig**: Per-tenant config — gradingSystem, workingDays, timezone, colors
+### Critical field names
+- `Parent`: `fatherName`, `motherName`, `guardianName`, `primaryPhone` (NO `name` field)
+- `Notice`: `body` (not `content`), `targetAudience` (not `audience`), `publishedAt` (not `publishAt`)
+- `FeeCollection`: `paymentMode` (not `mode`), `receiptDate` (not `paidAt`), `notes` (not `note`)
+- `ReportCardConfig`: requires `termId` + `gradeId`; includes `showAttendance`, `showRemarks`
+- `Class`: `grade` and `section` are scalar Int/String; relations are `gradeRef`/`sectionRef`
+- `ClassStudent`: junction with `classId`, `studentId`, `enrolledAt`; Student has `classes ClassStudent[]`
+- `AttendanceRecord`: `remark` (not `note`); no `markedById`
+- `Exam`: has `departmentId` (required), NO `terms` relation
+- `FacultyDepartment`: unique on `{facultyId, departmentId}`
 
-### Extended models (Sprint 1)
-- **User**: added `phone`, `isActive`, `lastLoginAt`, `avatarUrl`, FK to Tenant
-- **UserRole enum**: added `PRINCIPAL`, `ACCOUNTANT`, `PARENT`
+## API Routes (v1) — 61 routes total
 
-### New enums (Sprint 1)
-- `SubscriptionTier`: FREE, STARTER, PROFESSIONAL, ENTERPRISE
-- `SubscriptionStatus`: TRIAL, ACTIVE, SUSPENDED, CHURNED
-- `SchoolBoard`: CBSE, ICSE, STATE_BOARD, OTHER
+### Auth & School
+- `GET/PATCH /api/v1/school`, `GET/PATCH /api/v1/school/config`
+
+### Academic Structure
+- Academic years CRUD + `/set-current` + `/lock` + terms sub-resource
+- Grades, Sections, Subjects CRUD
+- Classes CRUD + `/students` sub-resource
+
+### People
+- Students CRUD + `/attendance` + `/marks` + `/fees` + `/transfer-out`
+- Parents CRUD + `/students` + `/me`
+- Faculty CRUD + department assignment
+- Departments CRUD
+
+### Academic Operations
+- Attendance sessions CRUD + `/records`
+- Exams CRUD
+- Marks: POST bulk, GET status, GET submissions
+- Report cards config
+
+### Fees
+- Categories CRUD
+- Structure CRUD
+- Collection CRUD + `/void`
+- `/fees/summary`, `/fees/dues`
+
+### Parent Portal
+- `/parent/children`, `/parent/children/[id]/attendance|fees|marks`
+
+### Other
+- Notices CRUD + `/publish` + `/feed`
+- Requests CRUD
+- Roles, Custom features
+- Audit logs
+
+## Portal Pages
+
+### Admin Portal (24 pages)
+Dashboard, Classes, Students (list + profile tabs), Parents, Faculty, Departments, Attendance, Exams, Fees (overview/structure/collection/dues), Notices, Report Cards, Academic Years, Grades & Subjects, Requests, Logs, School Setup, RBAC Roles/Custom Features
+
+### Faculty Portal (6 pages)
+Dashboard, Classes, Attendance (mark sessions), Marks (entry grid), Requests, Notices
+
+### Parent Portal (7 pages)
+Dashboard, Attendance, Marks, Fees, Report Cards, Notices, Profile
 
 ## Marks Lock Workflow
 ```
@@ -125,35 +160,37 @@ Admin/HOD rejects → SUBMITTED (editable again)
 Faculty submits edit request → EDIT_MARKS request (for LOCKED marks)
 ```
 
-## E2E Test Fixtures
-Test schools: `schl_a_test`, `schl_b_test`
-Test password: `TestPass123!`
+## Test Suite
+- **10 test files, 92 passing, 1 skipped** (93 total)
+- E2E tests: academic-structure, auth-parent, audit-logs, custom-features,
+  department-scope, rbac-clone-isolation, rls-validation, role-permissions, tenant-isolation
+- Unit tests: tenant-scoped-models
 
-Fixture setup order (important for FK constraints):
-1. Tenant records (must exist before User)
-2. Users
-3. Faculty records
-4. Departments (with headId)
-5. FacultyDepartment links
+## E2E Test Fixtures
+Test schools: `schl_a_test`, `schl_b_test` | Password: `TestPass123!`
 
 ## Environment Variables
-| Variable                      | Purpose                          |
-|-------------------------------|----------------------------------|
-| `DATABASE_URL`                | PostgreSQL connection string     |
-| `AUTH_SECRET`                 | HMAC-SHA256 session signing key  |
-| `NEXT_PUBLIC_SUPABASE_URL`    | Legacy (kept for compatibility)  |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Legacy (kept for compatibility)|
+| Variable                        | Purpose                          |
+|---------------------------------|----------------------------------|
+| `DATABASE_URL`                  | PostgreSQL connection string     |
+| `AUTH_SECRET`                   | HMAC-SHA256 session signing key  |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Legacy (kept for compatibility)  |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Legacy (kept for compatibility)  |
 
 ## Sprint History
 
-### Sprint 1 — Multi-tenant foundation (current)
-- Added Tenant + SchoolConfig models to schema
-- Extended UserRole with PRINCIPAL, ACCOUNTANT, PARENT
-- Added User fields: phone, isActive, lastLoginAt, avatarUrl
-- Replaced Supabase auth with pure HMAC-SHA256 cookie auth
-- Built `tenantDb()` Prisma extension for automatic schoolId scoping
-- Updated all API routes and server libs to use tenantDb
-- Updated login route to handle all UserRole values + isActive check + lastLoginAt
-- Fixed RBAC middleware checkSuperAdminMiddleware to scope by schoolId
-- Updated E2E test setup to create Tenant fixtures before User records
-- Applied schema via `prisma db push` (DB was previously unmanaged by Migrate)
+### Sprint 1 — Multi-tenant foundation
+- Tenant + SchoolConfig models; extended UserRole/User; HMAC cookie auth
+- `tenantDb()` Prisma extension; all API routes updated
+
+### Sprint 2 — Academic structure (M03)
+- AcademicYear, Term, Grade, Section, Subject models
+- Full CRUD API routes; academic-years/grades/setup UI pages
+
+### Phases 3–4 — M04 schema + full API surface
+- 34 models, 14 enums pushed to DB via `prisma db push`
+- All Zod schemas corrected to M04 enum values
+- 61 v1 API routes covering all ERP domains
+- Admin portal: faculty, departments, student profile, exams, fees/dues
+- Faculty portal: marks entry grid (class + exam selector)
+- Parent portal: report cards, profile, correct marks/attendance/fees endpoints

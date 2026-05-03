@@ -14,9 +14,12 @@ type NavItemConfig = AppShellNavItem & { requiredPermission: string | null };
  * requiredPermission: <key> → shown only when the user holds that permission
  */
 const ALL_NAV_ITEMS: NavItemConfig[] = [
-  { label: 'Classes',  href: '/faculty',          icon: 'faculty',   exact: true, requiredPermission: null },
-  { label: 'Requests', href: '/faculty/requests',  icon: 'requests',              requiredPermission: null },
-  { label: 'Marks',    href: '/faculty/classes',   icon: 'classes',               requiredPermission: 'marks.create' },
+  { label: 'Dashboard',  href: '/faculty',             icon: 'dashboard',  exact: true, requiredPermission: null },
+  { label: 'Classes',    href: '/faculty/classes',     icon: 'classes',               requiredPermission: null },
+  { label: 'Attendance', href: '/faculty/attendance',  icon: 'attendance',            requiredPermission: null },
+  { label: 'Marks',      href: '/faculty/marks',       icon: 'classes',               requiredPermission: 'marks.create' },
+  { label: 'Notices',    href: '/faculty/notices',     icon: 'notices',               requiredPermission: null },
+  { label: 'Requests',   href: '/faculty/requests',    icon: 'requests',              requiredPermission: null },
 ];
 
 export default async function FacultyLayout({ children }: { children: React.ReactNode }) {

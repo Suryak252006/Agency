@@ -16,14 +16,22 @@ type NavItemConfig = AppShellNavItem & { requiredPermission: string | null };
  *                             (directly through a role or a custom feature)
  */
 const ALL_NAV_ITEMS: NavItemConfig[] = [
-  { label: 'Dashboard',         href: '/admin',                icon: 'dashboard',      exact: true, requiredPermission: null },
-  { label: 'Classes',           href: '/admin/classes',        icon: 'classes',                     requiredPermission: 'marks.approve' },
-  { label: 'Students',          href: '/admin/students',       icon: 'students',                    requiredPermission: 'students.view' },
-  { label: 'Academic Years',    href: '/admin/academic-years', icon: 'academic-years',              requiredPermission: 'settings.view' },
-  { label: 'Grades & Subjects', href: '/admin/grades',         icon: 'grades',                      requiredPermission: 'settings.view' },
-  { label: 'Requests',          href: '/admin/requests',       icon: 'requests',                    requiredPermission: 'marks.approve' },
-  { label: 'Logs',              href: '/admin/logs',           icon: 'logs',                        requiredPermission: 'logs.view' },
-  { label: 'School Setup',      href: '/admin/setup',          icon: 'setup',                       requiredPermission: 'settings.edit' },
+  { label: 'Dashboard',         href: '/admin',                   icon: 'dashboard',      exact: true, requiredPermission: null },
+  { label: 'Classes',           href: '/admin/classes',           icon: 'classes',                     requiredPermission: 'marks.approve' },
+  { label: 'Students',          href: '/admin/students',          icon: 'students',                    requiredPermission: 'students.view' },
+  { label: 'Parents',           href: '/admin/parents',           icon: 'parents',                     requiredPermission: 'students.view' },
+  { label: 'Faculty',           href: '/admin/faculty',           icon: 'students',                    requiredPermission: 'faculty.view' },
+  { label: 'Departments',       href: '/admin/departments',       icon: 'classes',                     requiredPermission: 'settings.view' },
+  { label: 'Attendance',        href: '/admin/attendance',        icon: 'attendance',                  requiredPermission: 'marks.approve' },
+  { label: 'Exams',             href: '/admin/exams',             icon: 'classes',                     requiredPermission: 'marks.approve' },
+  { label: 'Fees',              href: '/admin/fees',              icon: 'fees',                        requiredPermission: 'settings.view' },
+  { label: 'Notices',           href: '/admin/notices',           icon: 'notices',                     requiredPermission: null },
+  { label: 'Report Cards',      href: '/admin/report-cards',      icon: 'report-cards',                requiredPermission: 'marks.approve' },
+  { label: 'Academic Years',    href: '/admin/academic-years',    icon: 'academic-years',              requiredPermission: 'settings.view' },
+  { label: 'Grades & Subjects', href: '/admin/grades',            icon: 'grades',                      requiredPermission: 'settings.view' },
+  { label: 'Requests',          href: '/admin/requests',          icon: 'requests',                    requiredPermission: 'marks.approve' },
+  { label: 'Logs',              href: '/admin/logs',              icon: 'logs',                        requiredPermission: 'logs.view' },
+  { label: 'School Setup',      href: '/admin/setup',             icon: 'setup',                       requiredPermission: 'settings.edit' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

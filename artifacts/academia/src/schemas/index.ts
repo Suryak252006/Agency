@@ -394,3 +394,137 @@ export type CreateRequest = z.infer<typeof CreateRequestSchema>;
 export type UserRole = z.infer<typeof UserRoleSchema>;
 export type Session = z.infer<typeof SessionSchema>;
 export type ApiError = z.infer<typeof ApiErrorSchema>;
+
+/**
+ * M04 — SIS, Attendance, Fees, Notices
+ */
+export const GenderSchema = z.enum(['MALE', 'FEMALE', 'OTHER']);
+export const StudentCategorySchema = z.enum(['GENERAL', 'OBC', 'SC', 'ST', 'EWS', 'OTHER']);
+export const ParentRelationSchema = z.enum(['FATHER', 'MOTHER', 'GUARDIAN', 'OTHER']);
+export const AttendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'HOLIDAY', 'MEDICAL_LEAVE']);
+export const FeeFrequencySchema = z.enum(['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'ANNUAL']);
+export const PaymentModeSchema = z.enum(['CASH', 'CHEQUE', 'NEFT', 'UPI', 'DEMAND_DRAFT']);
+export const NoticeTypeSchema = z.enum(['GENERAL', 'ACADEMIC', 'EXAM', 'FEE', 'EVENT', 'HOLIDAY', 'URGENT']);
+export const NoticeAudienceSchema = z.enum(['ALL', 'ADMIN_ONLY', 'FACULTY', 'PARENTS', 'STUDENTS', 'SPECIFIC_GRADES']);
+export const ReportTemplateSchema = z.enum(['CBSE_10_POINT', 'ICSE_PERCENT', 'STATE_BOARD_PERCENT', 'CUSTOM']);
+
+export const CreateParentSchema = z.object({
+  fatherName: z.string().min(2).max(100).optional(),
+  motherName: z.string().min(2).max(100).optional(),
+  guardianName: z.string().min(2).max(100).optional(),
+  primaryPhone: z.string().min(7).max(20),
+  secondaryPhone: z.string().max(20).optional(),
+  email: EmailSchema.optional(),
+  occupation: z.string().max(100).optional(),
+  address: z.string().max(500).optional(),
+});
+
+export const UpdateParentSchema = CreateParentSchema.partial();
+
+export const LinkStudentToParentSchema = z.object({
+  studentId: CuidSchema,
+  relation: ParentRelationSchema,
+  isPrimary: z.boolean().default(false),
+});
+
+export const CreateAttendanceSessionSchema = z.object({
+  classId: CuidSchema,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  academicYearId: CuidSchema.optional(),
+});
+
+export const UpsertAttendanceRecordSchema = z.object({
+  studentId: CuidSchema,
+  status: AttendanceStatusSchema,
+  note: z.string().max(300).optional(),
+});
+
+export const BulkAttendanceSchema = z.object({
+  sessionId: CuidSchema,
+  records: z.array(UpsertAttendanceRecordSchema).min(1),
+});
+
+export const CreateFeeCategorySchema = z.object({
+  name: z.string().min(1).max(100),
+  code: z.string().max(20).optional(),
+  isRecurring: z.boolean().default(true),
+});
+
+export const UpdateFeeCategorySchema = CreateFeeCategorySchema.partial();
+
+export const CreateFeeStructureSchema = z.object({
+  categoryId: CuidSchema,
+  gradeId: CuidSchema.optional(),
+  academicYearId: CuidSchema.optional(),
+  amount: z.number().positive(),
+  frequency: FeeFrequencySchema,
+  dueDay: z.number().int().min(1).max(31).optional(),
+  isOptional: z.boolean().default(false),
+});
+
+export const UpdateFeeStructureSchema = CreateFeeStructureSchema.partial();
+
+export const RecordFeeCollectionSchema = z.object({
+  studentId: CuidSchema,
+  academicYearId: CuidSchema.optional(),
+  installmentIds: z.array(CuidSchema).min(1),
+  amount: z.number().positive(),
+  mode: PaymentModeSchema,
+  transactionRef: z.string().max(100).optional(),
+  note: z.string().max(300).optional(),
+  paidAt: z.string().datetime().optional(),
+});
+
+export const CreateNoticeSchema = z.object({
+  title: z.string().min(3).max(200),
+  content: z.string().min(10),
+  type: NoticeTypeSchema.default('GENERAL'),
+  audience: NoticeAudienceSchema.default('ALL'),
+  priority: z.number().int().min(1).max(10).default(1),
+  publishAt: z.string().datetime().optional(),
+  expiresAt: z.string().datetime().optional(),
+});
+
+export const UpdateNoticeSchema = CreateNoticeSchema.partial();
+
+export const CreateReportCardConfigSchema = z.object({
+  academicYearId: CuidSchema,
+  termId: CuidSchema.optional(),
+  gradeId: CuidSchema.optional(),
+  template: ReportTemplateSchema.default('CBSE_10_POINT'),
+  includeAttendance: z.boolean().default(true),
+  includeRemarks: z.boolean().default(true),
+});
+
+export const UpdateReportCardConfigSchema = CreateReportCardConfigSchema.partial();
+
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Must contain uppercase letter')
+    .regex(/[0-9]/, 'Must contain a number'),
+});
+
+export type Gender = z.infer<typeof GenderSchema>;
+export type StudentCategory = z.infer<typeof StudentCategorySchema>;
+export type ParentRelation = z.infer<typeof ParentRelationSchema>;
+export type AttendanceStatus = z.infer<typeof AttendanceStatusSchema>;
+export type FeeFrequency = z.infer<typeof FeeFrequencySchema>;
+export type PaymentMode = z.infer<typeof PaymentModeSchema>;
+export type NoticeType = z.infer<typeof NoticeTypeSchema>;
+export type NoticeAudience = z.infer<typeof NoticeAudienceSchema>;
+export type ReportTemplate = z.infer<typeof ReportTemplateSchema>;
+export type CreateParent = z.infer<typeof CreateParentSchema>;
+export type UpdateParent = z.infer<typeof UpdateParentSchema>;
+export type LinkStudentToParent = z.infer<typeof LinkStudentToParentSchema>;
+export type CreateAttendanceSession = z.infer<typeof CreateAttendanceSessionSchema>;
+export type BulkAttendance = z.infer<typeof BulkAttendanceSchema>;
+export type CreateFeeCategory = z.infer<typeof CreateFeeCategorySchema>;
+export type CreateFeeStructure = z.infer<typeof CreateFeeStructureSchema>;
+export type RecordFeeCollection = z.infer<typeof RecordFeeCollectionSchema>;
+export type CreateNotice = z.infer<typeof CreateNoticeSchema>;
+export type UpdateNotice = z.infer<typeof UpdateNoticeSchema>;
+export type CreateReportCardConfig = z.infer<typeof CreateReportCardConfigSchema>;
+export type ChangePassword = z.infer<typeof ChangePasswordSchema>;

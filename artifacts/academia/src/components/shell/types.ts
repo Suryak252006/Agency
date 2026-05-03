@@ -1,13 +1,18 @@
 import type { ReactNode } from 'react';
 import {
+  Award,
+  Bell,
   BookOpen,
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
+  CreditCard,
   GraduationCap,
   History,
   LayoutDashboard,
   LayoutGrid,
   Settings2,
+  UserCheck,
   Users,
 } from 'lucide-react';
 
@@ -21,6 +26,11 @@ export const ICONS = {
   'academic-years': CalendarDays,
   grades: GraduationCap,
   setup: Settings2,
+  parents: UserCheck,
+  attendance: CalendarCheck,
+  fees: CreditCard,
+  notices: Bell,
+  'report-cards': Award,
 } as const;
 
 export type AppShellNavItem = {
