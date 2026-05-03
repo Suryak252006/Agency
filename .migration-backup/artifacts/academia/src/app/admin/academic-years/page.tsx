@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarDays, Lock, Plus, Star, Trash2 } from 'lucide-react';
-import useSWR, { mutate as globalMutate } from 'swr';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,64 +10,63 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { AcademicYearRecord } from '@/schemas';
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import {
+  useAcademicYears,
+  useCreateAcademicYear,
+  useSetCurrentAcademicYear,
+  useLockAcademicYear,
+  useDeleteAcademicYear,
+} from '@/lib/client/hooks';
 
 export default function AcademicYearsPage() {
-  const { data, isLoading, mutate } = useSWR('/api/v1/academic-years', fetcher);
+  const { data, isLoading } = useAcademicYears();
   const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
+
+  const createMutation = useCreateAcademicYear();
+  const setCurrentMutation = useSetCurrentAcademicYear();
+  const lockMutation = useLockAcademicYear();
+  const deleteMutation = useDeleteAcademicYear();
 
   const years: AcademicYearRecord[] = data?.data?.academicYears ?? [];
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!form.name || !form.startDate || !form.endDate) {
       toast.error('All fields are required');
       return;
     }
-    setCreating(true);
-    try {
-      const res = await fetch('/api/v1/academic-years', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          startDate: new Date(form.startDate).toISOString(),
-          endDate: new Date(form.endDate).toISOString(),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message ?? 'Failed to create');
-      }
-      toast.success('Academic year created');
-      setShowCreate(false);
-      setForm({ name: '', startDate: '', endDate: '' });
-      mutate();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCreating(false);
-    }
+    createMutation.mutate(
+      {
+        name: form.name,
+        startDate: new Date(form.startDate).toISOString(),
+        endDate: new Date(form.endDate).toISOString(),
+      },
+      {
+        onSuccess: () => {
+          toast.success('Academic year created');
+          setShowCreate(false);
+          setForm({ name: '', startDate: '', endDate: '' });
+        },
+      },
+    );
   };
 
-  const handleSetCurrent = async (id: string) => {
-    const res = await fetch(`/api/v1/academic-years/${id}/set-current`, { method: 'POST' });
-    if (res.ok) { toast.success('Set as current year'); mutate(); }
-    else toast.error('Failed to update');
+  const handleSetCurrent = (id: string) => {
+    setCurrentMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Set as current year'),
+    });
   };
 
-  const handleLock = async (id: string) => {
-    const res = await fetch(`/api/v1/academic-years/${id}/lock`, { method: 'POST' });
-    if (res.ok) { toast.success('Academic year locked'); mutate(); }
-    else toast.error('Failed to lock');
+  const handleLock = (id: string) => {
+    lockMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Academic year locked'),
+    });
   };
 
-  const handleDelete = async (id: string) => {
-    const res = await fetch(`/api/v1/academic-years/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast.success('Deleted'); mutate(); }
-    else toast.error('Failed to delete');
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate({ id }, {
+      onSuccess: () => toast.success('Deleted'),
+    });
   };
 
   if (isLoading) {
@@ -126,8 +124,8 @@ export default function AcademicYearsPage() {
               />
             </div>
             <div className="flex gap-2 sm:col-span-3">
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? 'Creating…' : 'Create'}
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Creating…' : 'Create'}
               </Button>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             </div>
