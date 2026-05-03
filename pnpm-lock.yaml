@@ -316,7 +316,7 @@ importers:
         version: 3.25.76
     devDependencies:
       '@tailwindcss/postcss':
-        specifier: ^4.2.4
+        specifier: 4.2.4
         version: 4.2.4
       '@types/bcryptjs':
         specifier: ^2.4.6
@@ -340,8 +340,8 @@ importers:
         specifier: ^6.19.3
         version: 6.19.3(typescript@5.9.3)
       tailwindcss:
-        specifier: ^4.1.12
-        version: 4.2.1
+        specifier: ^4.2.4
+        version: 4.2.4
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
